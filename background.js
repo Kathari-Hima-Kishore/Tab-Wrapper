@@ -1,7 +1,7 @@
 // Background service worker for Tab Wrapper extension
 // Handles tab collection and calls the Vercel backend for organization
 
-const BACKEND_URL = 'https://tab-wrapper-e12sj741o-khks-projects-0ec29871.vercel.app/api/organize';
+const BACKEND_URL = 'https://tab-wrapper-khks-projects-0ec29871.vercel.app/api/organize';
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
