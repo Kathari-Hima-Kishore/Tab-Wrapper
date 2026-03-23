@@ -28,7 +28,7 @@ def organize_tabs():
             return jsonify({"error": "No JSON payload provided"}), 400
             
         tabs = data.get('tabs', [])
-        tabs_per_group = data.get('tabsPerGroup', 5) # Default to 5
+        tabs_per_group = data.get('tabsPerGroup', 5)
         
         if not tabs:
             return jsonify({"error": "No tabs provided in request"}), 400
@@ -37,11 +37,10 @@ def organize_tabs():
         tabs_data = "\n".join([f"{i+1}. \"{t.get('title', 'Untitled')}\" - {t.get('url', '')}" for i, t in enumerate(tabs)])
         
         prompt = f"""Organize ALL {len(tabs)} tabs into logical groups. 
-PREFERENCE: Aim for approximately {tabs_per_group} tabs per group where possible. 
-This is not a strict rule, but a style preference.
+PREFERENCE: Aim for approximately {tabs_per_group} tabs per group where possible.
 
 Every single tab ID from 1 to {len(tabs)} MUST be included in exactly one group.
-Do not skip any tabs. If a tab doesn't fit, create a "General" or "Miscellaneous" group.
+Do not skip any tabs.
 
 Return ONLY a JSON array of groups:
 [{{"groupName":"Specific Group Name","color":"blue","tabIds":[1,2,3]}}]
@@ -49,11 +48,12 @@ Return ONLY a JSON array of groups:
 Tabs to organize:
 {tabs_data}
 
-Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange
-Include EVERY tab index from 1 to {len(tabs)}."""
+Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
 
-        # Call Gemini 1.5 Flash (Standard high-limit model)
-        gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        # Using Gemini 3 Flash from your available models list
+        model_id = "gemini-3-flash"
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent"
+        
         headers = {
             'Content-Type': 'application/json',
             'x-goog-api-key': api_key
@@ -62,10 +62,14 @@ Include EVERY tab index from 1 to {len(tabs)}."""
             "contents": [{"parts": [{"text": prompt}]}]
         }
 
+        print(f"Calling Gemini API with model: {model_id}")
         gemini_res = requests.post(gemini_url, json=payload, headers=headers)
         
         if gemini_res.status_code != 200:
-            return jsonify({"error": f"Gemini API error: {gemini_res.text}"}), 500
+            return jsonify({
+                "error": f"Model {model_id} error ({gemini_res.status_code})",
+                "details": gemini_res.text
+            }), gemini_res.status_code
             
         result = gemini_res.json()
         text = result['candidates'][0]['content']['parts'][0]['text']
@@ -81,7 +85,6 @@ Include EVERY tab index from 1 to {len(tabs)}."""
 
     except Exception as e:
         error_msg = traceback.format_exc()
-        print(f"Server Error: {error_msg}")
         return jsonify({"success": False, "error": str(e), "trace": error_msg}), 500
 
 if __name__ == '__main__':
