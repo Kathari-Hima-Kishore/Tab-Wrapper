@@ -9,7 +9,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     if (message.action === 'organizeTabs') {
         console.log('Tab Wrapper Background: Starting organizeTabsWithAI');
-        organizeTabsWithAI().then(result => {
+        organizeTabsWithAI(message.tabsPerGroup).then(result => {
             console.log('Tab Wrapper Background: organizeTabsWithAI completed:', result);
             sendResponse(result);
         }).catch(error => {
@@ -23,8 +23,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
-async function organizeTabsWithAI() {
-    console.log('Tab Wrapper: Starting organizeTabsWithAI');
+async function organizeTabsWithAI(tabsPerGroup) {
+    console.log('Tab Wrapper: Starting organizeTabsWithAI with preference:', tabsPerGroup);
     
     try {
         // Step 1: Get tabs from the last focused normal window
@@ -66,6 +66,7 @@ async function organizeTabsWithAI() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    tabsPerGroup: tabsPerGroup || 5,
                     tabs: scriptableTabs.map(tab => ({
                         id: tab.id,
                         title: tab.title || 'Untitled',
@@ -128,32 +129,31 @@ async function clearExistingGroups(windowId) {
 async function createTabGroups(groups, windowId) {
     const createdGroups = [];
 
+    // Fetch current tabs for the target window to ensure correct mapping
+    const currentTabs = await chrome.tabs.query({ windowId: windowId });
+    const scriptableTabs = currentTabs.filter(tab => 
+        tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))
+    );
+
     for (const group of groups) {
-        if (!group.tabIds || group.tabIds.length < 2) continue;
+        if (!group.tabIds || group.tabIds.length === 0) continue;
 
         try {
-            // Convert 1-based indices from backend back to actual tab IDs
-            // Note: Our backend prompt asked for 1-based indices relative to the list sent
-            // We need to fetch the current tabs again to be sure
-            const currentTabs = await chrome.tabs.query({ windowId: windowId });
-            const scriptableTabs = currentTabs.filter(tab => 
-                tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))
-            );
-
+            // Map 1-based indices to actual tab IDs
             const actualTabIds = group.tabIds
                 .map(idx => scriptableTabs[idx - 1]?.id)
                 .filter(id => id !== undefined);
 
-            if (actualTabIds.length < 2) continue;
+            if (actualTabIds.length === 0) continue;
 
-            console.log(`Tab Wrapper: Grouping into "${group.groupName}"`);
+            console.log(`Tab Wrapper: Grouping ${actualTabIds.length} tab(s) into "${group.groupName}"`);
 
             const groupId = await chrome.tabs.group({ 
                 tabIds: actualTabIds,
                 createProperties: { windowId: windowId }
             });
 
-            // Standardize color (API uses 'grey' instead of 'gray')
+            // Standardize color
             let groupColor = (group.color || 'blue').toLowerCase();
             if (groupColor === 'gray') groupColor = 'grey';
 

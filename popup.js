@@ -14,12 +14,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         resultText: document.getElementById('resultText'),
         resultDetail: document.getElementById('resultDetail'),
         errorText: document.getElementById('errorText'),
-        errorDetail: document.getElementById('errorDetail')
+        errorDetail: document.getElementById('errorDetail'),
+        tabsPerGroup: document.getElementById('tabsPerGroup'),
+        sliderValue: document.getElementById('sliderValue')
     };
 
     // Load initial state
     await loadTabCount();
     resetToInitial();
+
+    // Slider listener
+    elements.tabsPerGroup.addEventListener('input', (e) => {
+        elements.sliderValue.textContent = e.target.value;
+    });
 
     // Event listeners
     elements.organizeButton.addEventListener('click', organizeTabs);
@@ -55,7 +62,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             // Send message to background script
             const response = await chrome.runtime.sendMessage({
-                action: 'organizeTabs'
+                action: 'organizeTabs',
+                tabsPerGroup: elements.tabsPerGroup.value
             });
 
             if (response.success) {

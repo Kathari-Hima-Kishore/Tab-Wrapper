@@ -28,22 +28,32 @@ def organize_tabs():
             return jsonify({"error": "No JSON payload provided"}), 400
             
         tabs = data.get('tabs', [])
+        tabs_per_group = data.get('tabsPerGroup', 5) # Default to 5
+        
         if not tabs:
             return jsonify({"error": "No tabs provided in request"}), 400
 
         # Build prompt
         tabs_data = "\n".join([f"{i+1}. \"{t.get('title', 'Untitled')}\" - {t.get('url', '')}" for i, t in enumerate(tabs)])
-        prompt = f"""Group these {len(tabs)} tabs into 2-3 groups. Reply ONLY with JSON array:
-[{{"groupName":"Name","color":"blue","tabIds":[1,2]}}]
+        
+        prompt = f"""Organize ALL {len(tabs)} tabs into logical groups. 
+PREFERENCE: Aim for approximately {tabs_per_group} tabs per group where possible. 
+This is not a strict rule, but a style preference.
 
-Tabs:
+Every single tab ID from 1 to {len(tabs)} MUST be included in exactly one group.
+Do not skip any tabs. If a tab doesn't fit, create a "General" or "Miscellaneous" group.
+
+Return ONLY a JSON array of groups:
+[{{"groupName":"Specific Group Name","color":"blue","tabIds":[1,2,3]}}]
+
+Tabs to organize:
 {tabs_data}
 
-Colors: blue,red,yellow,green,pink,purple,cyan,orange
-tabIds: 1-{len(tabs)}"""
+Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange
+Include EVERY tab index from 1 to {len(tabs)}."""
 
-        # Call Gemini
-        gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
+        # Call Gemini 1.5 Flash (Standard high-limit model)
+        gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
         headers = {
             'Content-Type': 'application/json',
             'x-goog-api-key': api_key
@@ -74,6 +84,5 @@ tabIds: 1-{len(tabs)}"""
         print(f"Server Error: {error_msg}")
         return jsonify({"success": False, "error": str(e), "trace": error_msg}), 500
 
-# For Vercel, use 'app' as the entry point
 if __name__ == '__main__':
     app.run()

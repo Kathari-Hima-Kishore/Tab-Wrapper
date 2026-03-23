@@ -184,6 +184,20 @@
             </svg>
             <span id="tabCount">Loading tabs...</span>
         </div>
+
+        <!-- New Feature: Tabs Per Group Slider -->
+        <div style="margin-bottom: 24px; padding: 0 4px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px; color: #9ca3af;">
+                <span>Tabs per group (Target)</span>
+                <span id="sliderValue" style="color: #7c3aed; font-weight: 600;">5</span>
+            </div>
+            <input type="range" id="tabsPerGroup" min="2" max="15" value="5" 
+                   style="width: 100%; accent-color: #7c3aed; cursor: pointer; background: #18181b; border-radius: 8px; height: 6px; appearance: none;">
+            <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: #52525b;">
+                <span>Detailed</span>
+                <span>Broad</span>
+            </div>
+        </div>
         
         <button class="main-button" id="organizeButton">
             <span>✨</span>
