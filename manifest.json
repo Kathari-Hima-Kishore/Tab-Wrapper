@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Wrapper",
+  "version": "1.0.0",
+  "description": "AI-powered tab organization using Gemini - groups your tabs intelligently",
+  "permissions": [
+    "tabs",
+    "tabGroups",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Tab Wrapper - Organize with AI"
+  },
+  "options_page": "settings.html",
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  }
+}

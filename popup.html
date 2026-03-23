@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tab Wrapper</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0f;
+            color: #e4e4e7;
+            width: 280px;
+            min-height: 320px;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .title {
+            font-family: 'Syne', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: #7c3aed;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: #9ca3af;
+            font-weight: 400;
+        }
+
+        .tab-count {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: center;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .tab-count-icon {
+            width: 16px;
+            height: 16px;
+            opacity: 0.9;
+        }
+
+        .main-button {
+            width: 100%;
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .main-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.3);
+        }
+
+        .main-button:active {
+            transform: translateY(0);
+        }
+
+        .main-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(124, 58, 237, 0.2);
+            border-top: 3px solid #7c3aed;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .result {
+            display: none;
+            text-align: center;
+            padding: 16px;
+            background: rgba(124, 58, 237, 0.1);
+            border: 1px solid rgba(124, 58, 237, 0.3);
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+
+        .result.success {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+
+        .result.error {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .result-text {
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .result-detail {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .error-link {
+            color: #7c3aed;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .error-link:hover {
+            text-decoration: underline;
+        }
+
+        .settings-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            color: #9ca3af;
+            text-decoration: none;
+            font-size: 13px;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .settings-link:hover {
+            background: rgba(124, 58, 237, 0.1);
+            color: #7c3aed;
+        }
+
+        .settings-icon {
+            width: 14px;
+            height: 14px;
+        }
+
+        .initial-state {
+            display: block;
+        }
+
+        .processing-state {
+            display: none;
+        }
+
+        .complete-state {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">Tab Wrapper</div>
+        <div class="subtitle">AI-powered tab organization</div>
+    </div>
+
+    <div class="initial-state" id="initialState">
+        <div class="tab-count">
+            <svg class="tab-count-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <line x1="3" y1="9" x2="21" y2="9"/>
+                <line x1="9" y1="21" x2="9" y2="9"/>
+            </svg>
+            <span id="tabCount">Loading tabs...</span>
+        </div>
+        
+        <button class="main-button" id="organizeButton">
+            <span>✨</span>
+            <span>Organize My Tabs</span>
+        </button>
+    </div>
+
+    <div class="processing-state" id="processingState">
+        <div class="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">Organizing your tabs...</div>
+            <div class="loading-detail" style="font-size: 12px; color: #6b7280; margin-top: 8px;">
+                Analyzing with Gemini AI
+            </div>
+        </div>
+    </div>
+
+    <div class="complete-state" id="completeState">
+        <div class="result" id="resultBox">
+            <div class="result-text" id="resultText"></div>
+            <div class="result-detail" id="resultDetail"></div>
+        </div>
+        
+        <button class="main-button" id="organizeAgainButton">
+            <span>🔄</span>
+            <span>Organize Again</span>
+        </button>
+    </div>
+
+    <div class="error-state" id="errorState" style="display: none;">
+        <div class="result error">
+            <div class="result-text" id="errorText">Error occurred</div>
+            <div class="result-detail" id="errorDetail">Something went wrong</div>
+        </div>
+        
+        <button class="main-button" id="retryButton">
+            <span>🔄</span>
+            <span>Try Again</span>
+        </button>
+    </div>
+
+    <div style="text-align: center; margin-top: 16px;">
+        <a href="#" id="settingsLink" class="settings-link">
+            <svg class="settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 1v6m0 6v6m4.22-13.22l4.24 4.24M1.54 1.54l4.24 4.24M20.46 20.46l-4.24-4.24M1.54 20.46l4.24-4.24"/>
+            </svg>
+            <span>Settings</span>
+        </a>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
