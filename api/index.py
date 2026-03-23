@@ -50,9 +50,12 @@ Tabs to organize:
 
 Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
 
-        # STRICTLY USING Gemini 3.1 Flash Lite
-        model_id = "gemini-3.1-flash-lite"
+        # Use model ID from environment variable or fallback to requested model
+        model_id = os.environ.get("GEMINI_MODEL_ID", "gemini-3.1-flash-lite")
         gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent"
+        
+        # Logging for Vercel monitoring to confirm which model is being used
+        print(f"Backend: Attempting to use model: {model_id}")
         
         headers = {
             'Content-Type': 'application/json',
