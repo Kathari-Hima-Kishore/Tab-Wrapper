@@ -52,14 +52,13 @@ Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
 
         # Use model ID from environment variable or fallback to requested model
         model_id = os.environ.get("GEMINI_MODEL_ID", "gemini-3.1-flash-lite-preview")
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent"
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={api_key}"
         
         # Logging for Vercel monitoring to confirm which model is being used
         print(f"Backend: Attempting to use model: {model_id}")
         
         headers = {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': api_key
+            'Content-Type': 'application/json'
         }
         payload = {
             "contents": [{"parts": [{"text": prompt}]}]
