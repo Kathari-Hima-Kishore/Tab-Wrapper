@@ -19,7 +19,7 @@
             background: #0a0a0f;
             color: #e4e4e7;
             width: 280px;
-            min-height: 320px;
+            min-height: 280px;
             padding: 20px;
         }
 
@@ -99,7 +99,7 @@
         }
 
         .loading {
-            display: none;
+            display: block;
             text-align: center;
             padding: 20px;
         }
@@ -137,11 +137,13 @@
         .result.success {
             background: rgba(34, 197, 94, 0.1);
             border-color: rgba(34, 197, 94, 0.3);
+            display: block;
         }
 
         .result.error {
             background: rgba(239, 68, 68, 0.1);
             border-color: rgba(239, 68, 68, 0.3);
+            display: block;
         }
 
         .result-text {
@@ -152,39 +154,6 @@
         .result-detail {
             font-size: 12px;
             color: #9ca3af;
-        }
-
-        .error-link {
-            color: #7c3aed;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .error-link:hover {
-            text-decoration: underline;
-        }
-
-        .settings-link {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            color: #9ca3af;
-            text-decoration: none;
-            font-size: 13px;
-            padding: 8px;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .settings-link:hover {
-            background: rgba(124, 58, 237, 0.1);
-            color: #7c3aed;
-        }
-
-        .settings-icon {
-            width: 14px;
-            height: 14px;
         }
 
         .initial-state {
@@ -226,14 +195,11 @@
         <div class="loading">
             <div class="spinner"></div>
             <div class="loading-text">Organizing your tabs...</div>
-            <div class="loading-detail" style="font-size: 12px; color: #6b7280; margin-top: 8px;">
-                Analyzing with Gemini AI
-            </div>
         </div>
     </div>
 
     <div class="complete-state" id="completeState">
-        <div class="result" id="resultBox">
+        <div class="result success" id="resultBox">
             <div class="result-text" id="resultText"></div>
             <div class="result-detail" id="resultDetail"></div>
         </div>
@@ -254,16 +220,6 @@
             <span>🔄</span>
             <span>Try Again</span>
         </button>
-    </div>
-
-    <div style="text-align: center; margin-top: 16px;">
-        <a href="#" id="settingsLink" class="settings-link">
-            <svg class="settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M12 1v6m0 6v6m4.22-13.22l4.24 4.24M1.54 1.54l4.24 4.24M20.46 20.46l-4.24-4.24M1.54 20.46l4.24-4.24"/>
-            </svg>
-            <span>Settings</span>
-        </a>
     </div>
 
     <script src="popup.js"></script>

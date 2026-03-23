@@ -6,11 +6,11 @@
   "permissions": [
     "tabs",
     "tabGroups",
-    "scripting",
-    "storage"
+    "storage",
+    "windows"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "https://tab-wrapper-e12sj741o-khks-projects-0ec29871.vercel.app/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -19,7 +19,6 @@
     "default_popup": "popup.html",
     "default_title": "Tab Wrapper - Organize with AI"
   },
-  "options_page": "settings.html",
   "icons": {
     "16": "icons/16.png",
     "48": "icons/48.png",

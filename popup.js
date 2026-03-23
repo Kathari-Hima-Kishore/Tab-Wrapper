@@ -19,14 +19,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load initial state
     await loadTabCount();
-    await checkApiKey();
-    resetToInitial(); // Always start with initial state
+    resetToInitial();
 
     // Event listeners
     elements.organizeButton.addEventListener('click', organizeTabs);
     elements.organizeAgainButton.addEventListener('click', organizeTabs);
     elements.retryButton.addEventListener('click', organizeTabs);
-    document.getElementById('settingsLink').addEventListener('click', openSettingsPopup);
 
     /**
      * Load and display the current tab count
@@ -49,41 +47,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * Check if API key is set and show appropriate UI
-     */
-    async function checkApiKey() {
-        try {
-            const result = await chrome.storage.local.get(['geminiApiKey']);
-            const hasApiKey = !!result.geminiApiKey;
-            
-            if (!hasApiKey) {
-                showError(
-                    'API Key Required',
-                    'Please set your Gemini API key in settings to get started.',
-                    true
-                );
-            }
-        } catch (error) {
-            console.error('Error checking API key:', error);
-        }
-    }
-
-    /**
      * Main function to organize tabs using AI
      */
     async function organizeTabs() {
-        console.log('Tab Wrapper: organizeTabs called');
         showProcessing();
         
         try {
-            console.log('Tab Wrapper: Sending message to background script');
-            
-            // Send message to background script (no timeout)
+            // Send message to background script
             const response = await chrome.runtime.sendMessage({
                 action: 'organizeTabs'
             });
-
-            console.log('Tab Wrapper: Received response:', response);
 
             if (response.success) {
                 showSuccess(
@@ -93,22 +66,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else {
                 showError(
                     'Organization Failed',
-                    response.error || 'An unknown error occurred',
-                    response.needsApiKey
+                    response.error || 'An unknown error occurred'
                 );
             }
         } catch (error) {
             console.error('Tab Wrapper: Error organizing tabs:', error);
             showError(
                 'Communication Error',
-                error.message || 'Could not connect to background service. Please try again.',
-                false
+                error.message || 'Could not connect to background service.'
             );
         }
     }
 
     /**
-     * Show processing state with loading spinner
+     * Show processing state
      */
     function showProcessing() {
         hideAllStates();
@@ -130,24 +101,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     /**
      * Show error state
      */
-    function showError(title, detail, needsApiKey = false) {
+    function showError(title, detail) {
         hideAllStates();
         elements.errorState.style.display = 'block';
-        
         elements.errorText.textContent = title;
-        
-        if (needsApiKey) {
-            elements.errorDetail.innerHTML = `
-                ${detail}<br>
-                <a href="#" id="settingsFromError" class="error-link">Open Settings →</a>
-            `;
-            document.getElementById('settingsFromError').addEventListener('click', (e) => {
-                e.preventDefault();
-                openSettingsPopup(e);
-            });
-        } else {
-            elements.errorDetail.textContent = detail;
-        }
+        elements.errorDetail.textContent = detail;
     }
 
     /**
@@ -169,22 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadTabCount();
     }
 
-    /**
-     * Open settings in a popup window
-     */
-    function openSettingsPopup(event) {
-        event.preventDefault();
-        
-        chrome.windows.create({
-            url: chrome.runtime.getURL('settings.html'),
-            type: 'popup',
-            width: 700,
-            height: 600,
-            focused: true
-        });
-    }
-
-    // Handle tab count updates when popup is opened
+    // Handle tab count updates
     chrome.tabs.onCreated.addListener(loadTabCount);
     chrome.tabs.onRemoved.addListener(loadTabCount);
 });
