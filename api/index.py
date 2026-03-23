@@ -50,8 +50,8 @@ Tabs to organize:
 
 Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
 
-        # Using Gemini 3 Flash from your available models list
-        model_id = "gemini-3-flash"
+        # Using Gemini 3.1 Flash Lite from your available models list
+        model_id = "gemini-3.1-flash-lite"
         gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent"
         
         headers = {
