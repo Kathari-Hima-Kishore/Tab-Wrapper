@@ -18,7 +18,7 @@ def organize_tabs():
     if request.method == 'GET':
         return jsonify({"message": "Use POST to send tabs"}), 200
 
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         return jsonify({"error": "No API key set on server"}), 500
 
