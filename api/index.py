@@ -50,7 +50,7 @@ Tabs to organize:
 
 Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
 
-        # Using the current best model: Gemini 3.1 Flash Lite (500 RPD)
+        # STRICTLY USING Gemini 3.1 Flash Lite
         model_id = "gemini-3.1-flash-lite"
         gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent"
         
@@ -62,9 +62,6 @@ Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
             "contents": [{"parts": [{"text": prompt}]}]
         }
 
-        # Log for Vercel monitoring
-        print(f"Backend: Calling Gemini with model {model_id}")
-        
         gemini_res = requests.post(gemini_url, json=payload, headers=headers)
         
         if gemini_res.status_code != 200:
@@ -87,7 +84,7 @@ Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
 
     except Exception as e:
         error_msg = traceback.format_exc()
-        return jsonify({"success": False, "error": str(e), "trace": error_msg}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run()
