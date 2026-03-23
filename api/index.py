@@ -42,16 +42,16 @@ PREFERENCE: Aim for approximately {tabs_per_group} tabs per group where possible
 Every single tab ID from 1 to {len(tabs)} MUST be included in exactly one group.
 Do not skip any tabs.
 
-Return ONLY a JSON array:
-[{{"groupName":"Group Name","color":"blue","tabIds":[1,2,3]}}]
+Return ONLY a JSON array of groups:
+[{{"groupName":"Specific Group Name","color":"blue","tabIds":[1,2,3]}}]
 
-Tabs:
+Tabs to organize:
 {tabs_data}
 
-Colors: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
+Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
 
-        # gemini-1.5-flash is the best balance of speed, accuracy, and high limits
-        model_id = "gemini-1.5-flash"
+        # Using the current best model: Gemini 3.1 Flash Lite (500 RPD)
+        model_id = "gemini-3.1-flash-lite"
         gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent"
         
         headers = {
@@ -62,17 +62,21 @@ Colors: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
             "contents": [{"parts": [{"text": prompt}]}]
         }
 
+        # Log for Vercel monitoring
+        print(f"Backend: Calling Gemini with model {model_id}")
+        
         gemini_res = requests.post(gemini_url, json=payload, headers=headers)
         
         if gemini_res.status_code != 200:
             return jsonify({
-                "error": f"Model {model_id} error",
+                "error": f"Model {model_id} error ({gemini_res.status_code})",
                 "details": gemini_res.text
             }), gemini_res.status_code
             
         result = gemini_res.json()
         text = result['candidates'][0]['content']['parts'][0]['text']
         
+        # Extract JSON
         clean_text = text.replace('```json', '').replace('```', '').strip()
         match = re.search(r'\[[\s\S]*\]', clean_text)
         if match:
