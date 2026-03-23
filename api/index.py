@@ -51,7 +51,9 @@ Tabs to organize:
 Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
 
         # Use model ID from environment variable or fallback to requested model
-        model_id = os.environ.get("GEMINI_MODEL_ID", "gemini-3.1-flash-lite-preview")
+        model_id = os.environ.get("GEMINI_MODEL_ID")
+        if not model_id:
+            return jsonify({"error": "AI model is not configured on the server"}), 500
         gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={api_key}"
         
         # Logging for Vercel monitoring to confirm which model is being used
@@ -67,13 +69,7 @@ Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
         gemini_res = requests.post(gemini_url, json=payload, headers=headers)
         
         if gemini_res.status_code != 200:
-            try:
-                err_detail = gemini_res.json().get("error", {}).get("message", gemini_res.text)
-            except Exception:
-                err_detail = gemini_res.text
-            return jsonify({
-                "error": f"Gemini API error: {err_detail[:300]}"
-            }), gemini_res.status_code
+            return jsonify({"error": "AI model is not responding. Please try again later."}), 503
             
         result = gemini_res.json()
         text = result['candidates'][0]['content']['parts'][0]['text']
