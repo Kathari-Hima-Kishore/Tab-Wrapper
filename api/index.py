@@ -68,9 +68,12 @@ Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
         gemini_res = requests.post(gemini_url, json=payload, headers=headers)
         
         if gemini_res.status_code != 200:
+            try:
+                err_detail = gemini_res.json().get("error", {}).get("message", gemini_res.text)
+            except Exception:
+                err_detail = gemini_res.text
             return jsonify({
-                "error": f"Model {model_id} error ({gemini_res.status_code})",
-                "details": gemini_res.text
+                "error": f"Gemini API error: {err_detail[:300]}"
             }), gemini_res.status_code
             
         result = gemini_res.json()
