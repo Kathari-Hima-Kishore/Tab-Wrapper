@@ -3,7 +3,7 @@
 
 const BACKEND_URL = 'https://tab-wrapper-e12sj741o-khks-projects-0ec29871.vercel.app/api/organize';
 
-// Listen for messages from popup
+// Listen for messages from popup, check
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Tab Wrapper Background: Received message:', message);
     
@@ -60,24 +60,37 @@ async function organizeTabsWithAI() {
 
         // Step 2: Call your Vercel Backend
         console.log('Tab Wrapper: Calling backend API...');
-        const response = await fetch(BACKEND_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                tabs: scriptableTabs.map(tab => ({
-                    id: tab.id,
-                    title: tab.title || 'Untitled',
-                    url: tab.url
-                }))
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Backend error: ${response.status}`);
+        let response;
+        try {
+            response = await fetch(BACKEND_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tabs: scriptableTabs.map(tab => ({
+                        id: tab.id,
+                        title: tab.title || 'Untitled',
+                        url: tab.url
+                    }))
+                })
+            });
+        } catch (fetchError) {
+            console.error('Tab Wrapper: Network error calling backend:', fetchError);
+            throw new Error(`Connection to backend failed. Check your Vercel deployment.`);
         }
 
-        const data = await response.json();
+        const text = await response.text();
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (parseError) {
+            console.error('Tab Wrapper: Backend returned non-JSON response:', text);
+            throw new Error(`Server returned HTML error. Please ensure Vercel deployment is finished.`);
+        }
+
+        if (!response.ok) {
+            throw new Error(data.error || `Backend error: ${response.status}`);
+        }
+
         if (!data.success || !data.groups) {
             throw new Error(data.error || 'Failed to get groups from backend');
         }
