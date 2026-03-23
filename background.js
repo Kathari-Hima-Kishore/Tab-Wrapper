@@ -3,7 +3,7 @@
 
 const BACKEND_URL = 'https://tab-wrapper-e12sj741o-khks-projects-0ec29871.vercel.app/api/organize';
 
-// Listen for messages from popup, check
+// Listen for messages from popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Tab Wrapper Background: Received message:', message);
     
@@ -58,7 +58,7 @@ async function organizeTabsWithAI(tabsPerGroup) {
             };
         }
 
-        // Step 2: Call your Vercel Backend
+        // Step 2: Call your Vercel Backend (This hides the API key and model selection)
         console.log('Tab Wrapper: Calling backend API...');
         let response;
         try {
