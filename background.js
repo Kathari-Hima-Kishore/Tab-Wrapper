@@ -1,10 +1,19 @@
 // Background service worker for Tab Wrapper extension
 // Handles tab collection and calls the Vercel backend for organization
+// Cross-browser compatible: Chrome, Edge, Firefox, Brave
 
 const BACKEND_URL = 'https://tab-wrapper-khks-projects-0ec29871.vercel.app/api/organize';
 
+// Cross-browser API wrapper
+const api = typeof browser !== 'undefined' ? browser : chrome;
+
+// Check if tabGroups API is available
+const hasTabGroupsAPI = () => {
+    return typeof api.tabGroups !== 'undefined' || typeof api.tabs.group !== 'undefined';
+};
+
 // Listen for messages from popup
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+api.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Tab Wrapper Background: Received message:', message);
     
     if (message.action === 'organizeTabs') {
@@ -19,7 +28,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 error: error.message || 'Internal error occurred while organizing tabs'
             });
         });
-        return true;
+        return true; // Keep channel open for async response
     }
 });
 
@@ -30,14 +39,14 @@ async function organizeTabsWithAI(tabsPerGroup) {
         // Step 1: Get tabs from the last focused normal window
         let targetWindow;
         try {
-            targetWindow = await chrome.windows.getLastFocused({ populate: true });
+            targetWindow = await api.windows.getLastFocused({ populate: true });
             console.log('Tab Wrapper: Window type:', targetWindow.type, 'id:', targetWindow.id);
         } catch (e) {
             console.warn('Tab Wrapper: Could not get last focused window:', e.message);
         }
         
         if (!targetWindow || targetWindow.type.trim() !== 'normal') {
-            const windows = await chrome.windows.getAll({ populate: true });
+            const windows = await api.windows.getAll({ populate: true });
             const normalWindow = windows.find(w => w.type && w.type.trim() === 'normal');
             if (normalWindow) targetWindow = normalWindow;
         }
@@ -114,11 +123,17 @@ async function organizeTabsWithAI(tabsPerGroup) {
 
 async function clearExistingGroups(windowId) {
     try {
-        const groups = await chrome.tabGroups.query({ windowId: windowId });
+        // Check if tabGroups API is available
+        if (!hasTabGroupsAPI()) {
+            console.warn('Tab Wrapper: tabGroups API not available on this browser');
+            return;
+        }
+        
+        const groups = await api.tabGroups.query({ windowId: windowId });
         for (const group of groups) {
-            const tabs = await chrome.tabs.query({ groupId: group.id });
+            const tabs = await api.tabs.query({ groupId: group.id });
             if (tabs.length > 0) {
-                await chrome.tabs.ungroup(tabs.map(t => t.id));
+                await api.tabs.ungroup(tabs.map(t => t.id));
             }
         }
     } catch (error) {
@@ -129,8 +144,14 @@ async function clearExistingGroups(windowId) {
 async function createTabGroups(groups, windowId) {
     const createdGroups = [];
 
+    // Check if tabGroups API is available
+    if (!hasTabGroupsAPI()) {
+        console.error('Tab Wrapper: tabGroups API not available on this browser');
+        return createdGroups;
+    }
+
     // Fetch current tabs for the target window to ensure correct mapping
-    const currentTabs = await chrome.tabs.query({ windowId: windowId });
+    const currentTabs = await api.tabs.query({ windowId: windowId });
     const scriptableTabs = currentTabs.filter(tab => 
         tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))
     );
@@ -148,7 +169,7 @@ async function createTabGroups(groups, windowId) {
 
             console.log(`Tab Wrapper: Grouping ${actualTabIds.length} tab(s) into "${group.groupName}"`);
 
-            const groupId = await chrome.tabs.group({ 
+            const groupId = await api.tabs.group({ 
                 tabIds: actualTabIds,
                 createProperties: { windowId: windowId }
             });
@@ -157,7 +178,7 @@ async function createTabGroups(groups, windowId) {
             let groupColor = (group.color || 'blue').toLowerCase();
             if (groupColor === 'gray') groupColor = 'grey';
 
-            await chrome.tabGroups.update(groupId, {
+            await api.tabGroups.update(groupId, {
                 title: group.groupName,
                 color: groupColor
             });

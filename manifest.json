@@ -1,8 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Tab Wrapper",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "AI-powered tab organization using Gemini - groups your tabs intelligently",
+  "author": "Kathari Hima Kishore",
+  "homepage_url": "https://github.com/Kathari-Hima-Kishore/Tab-Wrapper",
   "permissions": [
     "tabs",
     "tabGroups",
@@ -10,7 +12,7 @@
     "windows"
   ],
   "host_permissions": [
-    "https://tab-wrapper-e12sj741o-khks-projects-0ec29871.vercel.app/*"
+    "https://tab-wrapper-khks-projects-0ec29871.vercel.app/*"
   ],
   "background": {
     "service_worker": "background.js"

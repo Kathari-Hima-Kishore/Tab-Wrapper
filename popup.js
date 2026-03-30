@@ -1,4 +1,9 @@
 // Popup UI controller for Tab Wrapper extension
+// Cross-browser compatible: Chrome, Edge, Firefox, Brave
+
+// Cross-browser API wrapper
+const api = typeof browser !== 'undefined' ? browser : chrome;
+
 document.addEventListener('DOMContentLoaded', async () => {
     // Get DOM elements
     const elements = {
@@ -38,7 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     async function loadTabCount() {
         try {
-            const tabs = await chrome.tabs.query({ currentWindow: true });
+            const tabs = await api.tabs.query({ currentWindow: true });
             const tabCount = tabs.length;
             elements.tabCount.textContent = `${tabCount} tabs open`;
             
@@ -61,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         try {
             // Send message to background script
-            const response = await chrome.runtime.sendMessage({
+            const response = await api.runtime.sendMessage({
                 action: 'organizeTabs',
                 tabsPerGroup: elements.tabsPerGroup.value
             });
@@ -136,6 +141,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Handle tab count updates
-    chrome.tabs.onCreated.addListener(loadTabCount);
-    chrome.tabs.onRemoved.addListener(loadTabCount);
+    api.tabs.onCreated.addListener(loadTabCount);
+    api.tabs.onRemoved.addListener(loadTabCount);
 });
