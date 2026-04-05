@@ -1,8 +1,19 @@
 {
   "manifest_version": 3,
   "name": "Tab Wrapper",
-  "version": "1.0.2",
+  "version": "1.0.5",
   "description": "AI-powered tab organization using Gemini - groups your tabs intelligently",
+  "minimum_chrome_version": "89",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tab-wrapper@extension.dev",
+      "strict_min_version": "139.0",
+      "data_collection_permissions": {
+        "required": ["websiteContent"],
+        "optional": []
+      }
+    }
+  },
   "author": "Kathari Hima Kishore",
   "homepage_url": "https://github.com/Kathari-Hima-Kishore/Tab-Wrapper",
   "permissions": [

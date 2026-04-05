@@ -185,8 +185,23 @@
             <span id="tabCount">Loading tabs...</span>
         </div>
 
-        <!-- New Feature: Tabs Per Group Slider -->
-        <div style="margin-bottom: 24px; padding: 0 4px;">
+        <!-- Mode Selection: Auto vs Manual -->
+        <div style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: center; gap: 8px; margin-bottom: 16px;">
+                <button type="button" id="autoModeBtn" class="mode-btn active" style="flex: 1; padding: 10px 12px; border: 2px solid #7c3aed; background: rgba(124, 58, 237, 0.15); color: #7c3aed; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                    🤖 Auto
+                </button>
+                <button type="button" id="manualModeBtn" class="mode-btn" style="flex: 1; padding: 10px 12px; border: 2px solid #3f3f46; background: transparent; color: #9ca3af; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                    🎚️ Manual
+                </button>
+            </div>
+            <div id="modeDescription" style="text-align: center; font-size: 11px; color: #7c3aed; margin-bottom: 12px;">
+                AI decides optimal grouping
+            </div>
+        </div>
+
+        <!-- Manual Slider (hidden by default in Auto mode) -->
+        <div id="manualSlider" style="margin-bottom: 24px; padding: 0 4px; display: none;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px; color: #9ca3af;">
                 <span>Tabs per group (Target)</span>
                 <span id="sliderValue" style="color: #7c3aed; font-weight: 600;">5</span>

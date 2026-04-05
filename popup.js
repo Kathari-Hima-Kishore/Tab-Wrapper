@@ -21,8 +21,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         errorText: document.getElementById('errorText'),
         errorDetail: document.getElementById('errorDetail'),
         tabsPerGroup: document.getElementById('tabsPerGroup'),
-        sliderValue: document.getElementById('sliderValue')
+        sliderValue: document.getElementById('sliderValue'),
+        autoModeBtn: document.getElementById('autoModeBtn'),
+        manualModeBtn: document.getElementById('manualModeBtn'),
+        modeDescription: document.getElementById('modeDescription'),
+        manualSlider: document.getElementById('manualSlider')
     };
+
+    // Current mode: 'auto' or 'manual'
+    let currentMode = 'auto';
 
     // Load initial state
     await loadTabCount();
@@ -31,6 +38,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Slider listener
     elements.tabsPerGroup.addEventListener('input', (e) => {
         elements.sliderValue.textContent = e.target.value;
+    });
+
+    // Mode toggle listeners
+    elements.autoModeBtn.addEventListener('click', () => setMode('auto'));
+    elements.manualModeBtn.addEventListener('click', () => setMode('manual'));
+
+    function setMode(mode) {
+        currentMode = mode;
+        if (mode === 'auto') {
+            elements.autoModeBtn.style.borderColor = '#7c3aed';
+            elements.autoModeBtn.style.background = 'rgba(124, 58, 237, 0.15)';
+            elements.autoModeBtn.style.color = '#7c3aed';
+            elements.manualModeBtn.style.borderColor = '#3f3f46';
+            elements.manualModeBtn.style.background = 'transparent';
+            elements.manualModeBtn.style.color = '#9ca3af';
+            elements.modeDescription.textContent = 'AI decides optimal grouping';
+            elements.modeDescription.style.color = '#7c3aed';
+            elements.manualSlider.style.display = 'none';
+        } else {
+            elements.manualModeBtn.style.borderColor = '#7c3aed';
+            elements.manualModeBtn.style.background = 'rgba(124, 58, 237, 0.15)';
+            elements.manualModeBtn.style.color = '#7c3aed';
+            elements.autoModeBtn.style.borderColor = '#3f3f46';
+            elements.autoModeBtn.style.background = 'transparent';
+            elements.autoModeBtn.style.color = '#9ca3af';
+            elements.modeDescription.textContent = 'Target: ~' + elements.tabsPerGroup.value + ' tabs per group';
+            elements.modeDescription.style.color = '#9ca3af';
+            elements.manualSlider.style.display = 'block';
+        }
+    }
+
+    // Update description when slider changes
+    elements.tabsPerGroup.addEventListener('input', () => {
+        if (currentMode === 'manual') {
+            elements.modeDescription.textContent = 'Target: ~' + elements.tabsPerGroup.value + ' tabs per group';
+        }
     });
 
     // Event listeners
@@ -65,10 +108,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         showProcessing();
         
         try {
-            // Send message to background script
+            // Send message to background script with mode info
             const response = await api.runtime.sendMessage({
                 action: 'organizeTabs',
-                tabsPerGroup: elements.tabsPerGroup.value
+                mode: currentMode,
+                tabsPerGroup: currentMode === 'manual' ? parseInt(elements.tabsPerGroup.value) : null
             });
 
             if (response.success) {

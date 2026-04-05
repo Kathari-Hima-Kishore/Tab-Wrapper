@@ -1,5 +1,7 @@
 # 📦 Tab Wrapper
 
+[Privacy Policy](https://kathari-hima-kishore.github.io/Tab-Wrapper/privacy.html) • [Install](#-getting-started)
+
 **AI-powered tab organization for the modern browser.**
 
 Tab Wrapper is a browser extension that uses advanced AI technology to analyze your open tabs and intelligently categorize them into native, color-coded tab groups with meaningful, context-aware names. Stop drowning in "tab chaos"—let AI declutter your workspace in seconds.

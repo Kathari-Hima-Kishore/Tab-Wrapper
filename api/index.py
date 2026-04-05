@@ -28,16 +28,35 @@ def organize_tabs():
             return jsonify({"error": "No JSON payload provided"}), 400
             
         tabs = data.get('tabs', [])
-        tabs_per_group = data.get('tabsPerGroup', 5)
+        mode = data.get('mode', 'auto')
+        tabs_per_group = data.get('tabsPerGroup')
         
         if not tabs:
             return jsonify({"error": "No tabs provided in request"}), 400
 
-        # Build prompt
+        # Build prompt based on mode
         tabs_data = "\n".join([f"{i+1}. \"{t.get('title', 'Untitled')}\" - {t.get('url', '')}" for i, t in enumerate(tabs)])
         
-        prompt = f"""Organize ALL {len(tabs)} tabs into logical groups. 
-PREFERENCE: Aim for approximately {tabs_per_group} tabs per group where possible.
+        if mode == 'auto':
+            # Auto mode: AI decides optimal grouping
+            prompt = f"""Organize ALL {len(tabs)} tabs into logical groups. 
+You decide the optimal number of groups and tabs per group based on content similarity.
+
+Every single tab ID from 1 to {len(tabs)} MUST be included in exactly one group.
+Do not skip any tabs.
+
+Return ONLY a JSON array of groups:
+[{{"groupName":"Specific Group Name","color":"blue","tabIds":[1,2,3]}}]
+
+Tabs to organize:
+{tabs_data}
+
+Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
+        else:
+            # Manual mode: User specified tabs per group preference
+            target = tabs_per_group or 5
+            prompt = f"""Organize ALL {len(tabs)} tabs into logical groups. 
+PREFERENCE: Aim for approximately {target} tabs per group where possible.
 
 Every single tab ID from 1 to {len(tabs)} MUST be included in exactly one group.
 Do not skip any tabs.

@@ -18,7 +18,7 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     if (message.action === 'organizeTabs') {
         console.log('Tab Wrapper Background: Starting organizeTabsWithAI');
-        organizeTabsWithAI(message.tabsPerGroup).then(result => {
+        organizeTabsWithAI(message.mode, message.tabsPerGroup).then(result => {
             console.log('Tab Wrapper Background: organizeTabsWithAI completed:', result);
             sendResponse(result);
         }).catch(error => {
@@ -32,8 +32,8 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
-async function organizeTabsWithAI(tabsPerGroup) {
-    console.log('Tab Wrapper: Starting organizeTabsWithAI with preference:', tabsPerGroup);
+async function organizeTabsWithAI(mode, tabsPerGroup) {
+    console.log('Tab Wrapper: Starting organizeTabsWithAI with mode:', mode, 'preference:', tabsPerGroup);
     
     try {
         // Step 1: Get tabs from the last focused normal window
@@ -75,7 +75,8 @@ async function organizeTabsWithAI(tabsPerGroup) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    tabsPerGroup: tabsPerGroup || 5,
+                    mode: mode || 'auto',
+                    tabsPerGroup: tabsPerGroup,
                     tabs: scriptableTabs.map(tab => ({
                         id: tab.id,
                         title: tab.title || 'Untitled',
