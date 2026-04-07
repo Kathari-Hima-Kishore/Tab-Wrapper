@@ -88,7 +88,9 @@ Colors allowed: grey, blue, red, yellow, green, pink, purple, cyan, orange"""
         gemini_res = requests.post(gemini_url, json=payload, headers=headers)
         
         if gemini_res.status_code != 200:
-            return jsonify({"error": "AI model is not responding. Please try again later."}), 503
+            error_detail = gemini_res.text
+            print(f"Gemini API Error: Status {gemini_res.status_code}, Response: {error_detail}")
+            return jsonify({"error": f"AI model error: {error_detail}"}), 503
             
         result = gemini_res.json()
         text = result['candidates'][0]['content']['parts'][0]['text']
