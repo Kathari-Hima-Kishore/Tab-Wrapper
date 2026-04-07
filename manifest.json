@@ -19,7 +19,6 @@
   "permissions": [
     "tabs",
     "tabGroups",
-    "storage",
     "windows"
   ],
   "host_permissions": [
