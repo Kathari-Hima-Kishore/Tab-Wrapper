@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Font Lab — Tab Wrapper title candidates</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Bebas+Neue&family=Bodoni+Moda:opsz,wght@6..96,700;6..96,900&family=Bungee&family=Chivo:wght@900&family=Cinzel:wght@700;900&family=DM+Serif+Display&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Fraunces:opsz,wght@9..144,700;9..144,900&family=Libre+Franklin:wght@700;900&family=Outfit:wght@800;900&family=Pacifico&family=Playfair+Display:wght@700;900&family=Press+Start+2P&family=Rubik+Mono+One&family=Space+Grotesk:wght@500;700&family=Space+Mono:wght@400;700&family=Syne:wght@700;800&family=Unbounded:wght@700;900&family=Whitesock&family=Yeseva+One&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  :root {
+    --page: #eef0f6;
+    --card: #ffffff;
+    --ink: #14204f;
+    --muted: #5a6a9c;
+    --line: #d4dae8;
+    --accent: #3b6bff;
+    --chip: #1e3fd6;
+  }
+
+  body {
+    font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: var(--page);
+    color: var(--ink);
+    padding: 40px 24px 150px;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  header { margin-bottom: 30px; }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .lede { font-size: 14px; line-height: 1.6; color: var(--muted); max-width: 74ch; }
+  .lede code { background:#dfe4f2; padding:1px 6px; border-radius:4px; font-size:12.5px; }
+
+  .filters { display:flex; flex-wrap:wrap; gap:8px; margin:24px 0 28px; }
+
+  .filters button {
+    font-family: inherit; font-size:12px; font-weight:700; letter-spacing:.5px;
+    text-transform: uppercase; padding:8px 14px; border:2px solid var(--ink);
+    border-radius:8px; background:var(--card); color:var(--ink); cursor:pointer;
+  }
+  .filters button.on { background: var(--ink); color:#fff; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(350px,1fr)); gap:18px; }
+
+  .card {
+    background:var(--card); border:2px solid var(--ink); border-radius:14px;
+    padding:20px; cursor:pointer; box-shadow:4px 4px 0 var(--ink);
+    transition: transform .08s ease, box-shadow .08s ease;
+  }
+  .card:hover { transform:translate(2px,2px); box-shadow:2px 2px 0 var(--ink); }
+  .card.picked { background:#e7ecff; box-shadow:0 0 0 3px var(--accent), 4px 4px 0 var(--ink); }
+
+  .meta {
+    display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+    margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line);
+  }
+  .fname { font-size:13px; font-weight:700; }
+  .tag { font-size:10px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--muted); white-space:nowrap; }
+  .tag.bad { color:#c0392b; }
+
+  /* Specimen sits in a fixed 2-line box so very different x-heights and
+     ascenders stay visually comparable instead of each card resizing itself. */
+  .stage {
+    height: 118px;
+    display: flex;
+    align-items: center;
+    background: #f7f8fc;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .stage > span {
+    display:block; width:100%; padding:0 14px;
+    font-size:38px; line-height:1.05; letter-spacing:-1.2px;
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  .chip {
+    display:inline-block; background:var(--chip); color:#f7f7f2;
+    font-size:17px; letter-spacing:-.3px; padding:8px 12px; border-radius:8px;
+    margin-bottom:12px;
+  }
+
+  .bodyline { font-size:12.5px; line-height:1.5; color:var(--muted); }
+
+  .note {
+    margin-top:26px; background:#fff6e5; border:2px solid #b8791b;
+    border-radius:12px; padding:16px 18px; font-size:13px; line-height:1.6;
+  }
+  .note b { color:#8a5a10; }
+  .note a { color:#8a5a10; }
+
+  .readout {
+    position:fixed; left:0; right:0; bottom:0; background:var(--ink);
+    color:#fff; padding:14px 24px;
+  }
+  .readout .inner {
+    max-width:1180px; margin:0 auto; display:flex; align-items:center;
+    gap:16px; flex-wrap:wrap;
+  }
+  .readout strong {
+    font-family:'Space Grotesk', sans-serif; font-size:15px;
+    text-transform:uppercase; letter-spacing:.5px;
+  }
+  #snippet {
+    font-family:'Space Mono', monospace; font-size:12.5px; background:#0d1638;
+    padding:7px 11px; border-radius:6px; flex:1; min-width:250px;
+    overflow-x:auto; white-space:nowrap;
+  }
+  #hint { font-size:12px; color:#9fb0e0; }
+  .copy {
+    font-family:inherit; font-size:12px; font-weight:700; letter-spacing:.5px;
+    text-transform:uppercase; padding:8px 14px; border:2px solid #fff;
+    border-radius:8px; background:var(--accent); color:#fff; cursor:pointer;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Font Lab</h1>
+    <p class="lede">
+      Twenty-one candidates, chosen to be visually far apart from each other —
+      one from each distinct genre rather than twenty shades of neo-grotesque.
+      Every card renders the name at the popup's size inside a fixed-height box,
+      so differences in x-height and stroke contrast are directly comparable.
+      Click a card to pick it; the readout gives you the
+      <code>font-family</code> value to paste into <code>popup.html</code>.
+    </p>
+  </header>
+
+  <div class="filters">
+    <button class="on" data-f="all">All</button>
+    <button data-f="grotesk">Grotesk</button>
+    <button data-f="display">Display</button>
+    <button data-f="serif">Serif</button>
+    <button data-f="mono">Mono</button>
+    <button data-f="script">Script</button>
+    <button data-f="pixel">Pixel</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="note">
+    <b>On Talina.</b> Deliberately excluded. Talina DEMO is released under the
+    1001Fonts <i>Free For Personal Use</i> licence, and your extension is
+    published, so it needs the commercial licence from
+    <a href="https://www.1001fonts.com/talina-demo-font.html">Pandeka Foundry</a>
+    first. Buy it and it drops straight into the commented <code>@font-face</code>
+    block already sitting in <code>popup.html</code>. Everything on this page is
+    safe to ship today.
+  </div>
+</div>
+
+<div class="readout">
+  <div class="inner">
+    <strong id="pickedName">Nothing picked</strong>
+    <div id="snippet">Click any card above</div>
+    <span id="hint"></span>
+    <button class="copy" id="copyBtn">Copy</button>
+  </div>
+</div>
+
+<script>
+const FAMILIES = [
+  { name: 'Anton',             css: "'Anton'",            w: '400',            genre: 'display',  tags: ['display'] },
+  { name: 'Archivo Black',     css: "'Archivo Black'",    w: '400',            genre: 'grotesk',  tags: ['grotesk'] },
+  { name: 'Bebas Neue',        css: "'Bebas Neue'",       w: '400',            genre: 'display',  tags: ['display'] },
+  { name: 'Bungee',            css: "'Bungee'",           w: '400',            genre: 'display',  tags: ['display'] },
+  { name: 'Bodoni Moda',       css: "'Bodoni Moda'",      w: '900',            genre: 'serif',    tags: ['serif'] },
+  { name: 'Chivo',             css: "'Chivo'",            w: '900',            genre: 'grotesk',  tags: ['grotesk'] },
+  { name: 'Cinzel',            css: "'Cinzel'",           w: '900',            genre: 'serif',    tags: ['serif'] },
+  { name: 'DM Serif Display',  css: "'DM Serif Display'", w: '400',            genre: 'serif',    tags: ['serif'] },
+  { name: 'Fraunces',          css: "'Fraunces'",         w: '900',            genre: 'serif',    tags: ['serif'] },
+  { name: 'Libre Franklin',    css: "'Libre Franklin'",   w: '900',            genre: 'grotesk',  tags: ['grotesk'] },
+  { name: 'Outfit',            css: "'Outfit'",           w: '900',            genre: 'grotesk',  tags: ['grotesk'] },
+  { name: 'Pacifico',          css: "'Pacifico'",         w: '400',            genre: 'script',   tags: ['script'] },
+  { name: 'Playfair Display',  css: "'Playfair Display'", w: '900',            genre: 'serif',    tags: ['serif'] },
+  { name: 'Press Start 2P',    css: "'Press Start 2P'",   w: '400',            genre: 'pixel',    tags: ['pixel'] },
+  { name: 'Rubik Mono One',    css: "'Rubik Mono One'",   w: '400',            genre: 'pixel',    tags: ['pixel'] },
+  { name: 'Space Grotesk',     css: "'Space Grotesk'",    w: '700',            genre: 'grotesk',  tags: ['grotesk'] },
+  { name: 'Space Mono',        css: "'Space Mono'",       w: '700',            genre: 'mono',     tags: ['mono'] },
+  { name: 'Syne',              css: "'Syne'",             w: '800',            genre: 'display',  tags: ['display'] },
+  { name: 'Unbounded',         css: "'Unbounded'",        w: '900',            genre: 'display',  tags: ['display'] },
+  { name: 'Whitesock',         css: "'Whitesock'",        w: '400',            genre: 'pixel',    tags: ['pixel'] },
+  { name: 'Yeseva One',        css: "'Yeseva One'",       w: '400',            genre: 'serif',    tags: ['serif'] }
+];
+
+const grid = document.getElementById('grid');
+
+FAMILIES.forEach(f => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.tags = f.tags.join(' ');
+  card.dataset.name = f.name;
+  card.innerHTML = `
+    <div class="meta">
+      <span class="fname">${f.name}</span>
+      <span class="tag" id="t-${f.name.replace(/\s+/g,'')}">${f.genre} · ${f.w}</span>
+    </div>
+    <div class="stage"><span style="font-family:${f.css}, sans-serif;">Tab Wrapper</span></div>
+    <div class="chip" style="font-family:${f.css}, sans-serif;">Tab Wrapper</div>
+    <div class="bodyline" style="font-family:${f.css}, sans-serif;">
+      Organizes your open tabs into native, colour-coded groups in one click.
+    </div>`;
+  grid.appendChild(card);
+});
+
+let picked = null;
+
+grid.addEventListener('click', (e) => {
+  const card = e.target.closest('.card');
+  if (!card) return;
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('picked'));
+  card.classList.add('picked');
+
+  picked = FAMILIES.find(f => f.name === card.dataset.name);
+  document.getElementById('pickedName').textContent = picked.name;
+  document.getElementById('snippet').textContent = `font-family: ${picked.css}, sans-serif;`;
+  document.getElementById('hint').textContent = picked.genre;
+});
+
+document.getElementById('copyBtn').addEventListener('click', async () => {
+  if (!picked) return;
+  const text = `font-family: ${picked.css}, sans-serif;`;
+  try {
+    await navigator.clipboard.writeText(text);
+    document.getElementById('copyBtn').textContent = 'Copied';
+    setTimeout(() => { document.getElementById('copyBtn').textContent = 'Copy'; }, 1400);
+  } catch {
+    document.getElementById('hint').textContent = 'Copy failed, select the text instead';
+  }
+});
+
+document.querySelectorAll('.filters button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filters button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    const f = btn.dataset.f;
+    document.querySelectorAll('.card').forEach(c => {
+      c.style.display = (f === 'all' || c.dataset.tags.split(' ').includes(f)) ? '' : 'none';
+    });
+  });
+});
+
+// Flag anything that failed to load so a bad request can't show a silent fallback
+document.fonts.ready.then(() => {
+  FAMILIES.forEach(f => {
+    const el = document.getElementById('t-' + f.name.replace(/\s+/g, ''));
+    if (el && !document.fonts.check(`700 38px ${f.css}`)) {
+      el.textContent = 'failed to load';
+      el.classList.add('bad');
+    }
+  });
+});
+</script>
+</body>
+</html>

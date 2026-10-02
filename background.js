@@ -2,7 +2,7 @@
 // Handles tab collection and calls the Vercel backend for organization
 // Cross-browser compatible: Chrome, Edge, Firefox, Brave
 
-const BACKEND_URL = 'https://tab-wrapper-khks-projects-0ec29871.vercel.app/api/organize';
+const BACKEND_URL = 'https://tab-wrapper-pboeynppt-khks-projects-0ec29871.vercel.app/api/organize';
 
 // Cross-browser API wrapper
 const api = typeof browser !== 'undefined' ? browser : chrome;
@@ -18,7 +18,7 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     if (message.action === 'organizeTabs') {
         console.log('Tab Wrapper Background: Starting organizeTabsWithAI');
-        organizeTabsWithAI(message.mode, message.tabsPerGroup).then(result => {
+        organizeTabsWithAI().then(result => {
             console.log('Tab Wrapper Background: organizeTabsWithAI completed:', result);
             sendResponse(result);
         }).catch(error => {
@@ -32,9 +32,9 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
-async function organizeTabsWithAI(mode, tabsPerGroup) {
-    console.log('Tab Wrapper: Starting organizeTabsWithAI with mode:', mode, 'preference:', tabsPerGroup);
-    
+async function organizeTabsWithAI() {
+    console.log('Tab Wrapper: Starting organizeTabsWithAI');
+
     try {
         // Step 1: Get tabs from the last focused normal window
         let targetWindow;
@@ -69,33 +69,53 @@ async function organizeTabsWithAI(mode, tabsPerGroup) {
 
         // Step 2: Call your Vercel Backend (This hides the API key and model selection)
         console.log('Tab Wrapper: Calling backend API...');
-        let response;
-        try {
-            response = await fetch(BACKEND_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    mode: mode || 'auto',
-                    tabsPerGroup: tabsPerGroup,
-                    tabs: scriptableTabs.map(tab => ({
-                        id: tab.id,
-                        title: tab.title || 'Untitled',
-                        url: tab.url
-                    }))
-                })
-            });
-        } catch (fetchError) {
-            console.error('Tab Wrapper: Network error calling backend:', fetchError);
-            throw new Error(`Connection to backend failed. Check your Vercel deployment.`);
-        }
 
-        const text = await response.text();
+        const payload = JSON.stringify({
+            tabs: scriptableTabs.map(tab => ({
+                id: tab.id,
+                title: tab.title || 'Untitled',
+                url: tab.url
+            }))
+        });
+
+        // A cold serverless start can drop the first outbound call. Retry once
+        // before surfacing anything, so the user never sees a spurious failure.
+        let response;
         let data;
-        try {
-            data = JSON.parse(text);
-        } catch (parseError) {
-            console.error('Tab Wrapper: Backend returned non-JSON response:', text);
-            throw new Error(`Server returned HTML error. Please ensure Vercel deployment is finished.`);
+        const maxAttempts = 2;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                response = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: payload
+                });
+            } catch (fetchError) {
+                console.error(`Tab Wrapper: Network error on attempt ${attempt}:`, fetchError);
+                if (attempt < maxAttempts) {
+                    await new Promise(r => setTimeout(r, 1200));
+                    continue;
+                }
+                throw new Error('Connection to backend failed. Check your Vercel deployment.');
+            }
+
+            const raw = await response.text();
+            try {
+                data = JSON.parse(raw);
+            } catch (parseError) {
+                console.error('Tab Wrapper: Backend returned non-JSON response:', raw);
+                throw new Error('Server returned HTML error. Please ensure Vercel deployment is finished.');
+            }
+
+            // Retry transient server-side failures (503, 502, 504, 429)
+            const transient = [429, 502, 503, 504].includes(response.status);
+            if (transient && attempt < maxAttempts) {
+                console.warn(`Tab Wrapper: Backend returned ${response.status}, retrying...`);
+                await new Promise(r => setTimeout(r, 1500));
+                continue;
+            }
+            break;
         }
 
         if (!response.ok) {
@@ -175,14 +195,19 @@ async function createTabGroups(groups, windowId) {
                 createProperties: { windowId: windowId }
             });
 
-            // Standardize color
-            let groupColor = (group.color || 'blue').toLowerCase();
+            // Use whatever colour Gemini chose. Chrome only accepts its own
+            // palette, so normalise the spelling and fall back to the browser
+            // default if the model returned something unrecognised.
+            const CHROME_COLORS = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'];
+            let groupColor = String(group.color || '').toLowerCase().trim();
             if (groupColor === 'gray') groupColor = 'grey';
 
-            await api.tabGroups.update(groupId, {
-                title: group.groupName,
-                color: groupColor
-            });
+            const update = { title: group.groupName };
+            if (CHROME_COLORS.includes(groupColor)) {
+                update.color = groupColor;
+            }
+
+            await api.tabGroups.update(groupId, update);
 
             createdGroups.push({ id: groupId, name: group.groupName });
         } catch (error) {

@@ -6,224 +6,641 @@
     <title>Tab Wrapper</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        /* To use the real Talina: buy a commercial license from Pandeka Foundry
+           (https://www.1001fonts.com/talina-demo-font.html), drop the .otf next
+           to this file, then uncomment the block below. */
+        /*
+        @font-face {
+            font-family: 'Talina';
+            src: url('Talina DEMO.otf') format('opentype');
+            font-weight: 400 800;
+            font-display: swap;
+        }
+        */
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
+        /* ---- Tokens ---- */
+        :root {
+            --page: #0a1a3a;   /* backdrop behind the card, standalone only */
+            --ink: #14204f;
+            --chalk: #f7f7f2;
+            --brutal: 3px;
+            --press-x: 5px;
+            --press-y: 5px;
+            --edge: #000000;   /* popup frame */
+            /* Radius scale for the inner surfaces. Outer frame stays square;
+               capsules are rounded rectangles, deliberately not full pills. */
+            --r-card: 18px;    /* buttons, result cards */
+            --r-badge: 10px;   /* status capsules */
+        }
+
+        /* Transparent canvas. Important: if html has no background, the browser
+           PROPAGATES the body's background to the whole canvas, painting it as a
+           rectangle right across the popup. So neither html nor body may carry
+           the fill - it lives on body::before, which is clipped. */
+        html {
+            background: transparent;
+        }
+
         body {
             font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #0a0a0f;
-            color: #e4e4e7;
+            color: var(--chalk);
             width: 280px;
-            min-height: 280px;
-            padding: 20px;
+            /* Let the content define the height: a fixed min-height was
+               reserving empty space below the button. */
+            padding: 18px;
+            /* No background here: it would propagate to the canvas (see above). */
+            background: transparent;
+            /* Square, with a solid black frame. Rounding the popup edge never
+               worked: Chrome's native popup surface is a hard rectangle, so a
+               rounded panel just left mismatched corners showing through it. A
+               square frame in black instead sits flush on the window boundary
+               and lets the two edges read as one. */
+            border: var(--brutal) solid var(--edge);
+            border-radius: 0;
+            box-shadow: none;
+            overflow: hidden;
+            position: relative;
+            isolation: isolate;
+        }
+
+        /* The panel fill. A positioned child is clipped to the body's box, unlike a
+           background on html/body which escapes to the viewport. */
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background: linear-gradient(180deg, #1e5aa8 0%, #16408a 35%, #0e2a66 65%, #081a44 100%);
+        }
+
+        /* Standalone in a browser tab there is page around the panel, so the
+           card can sit on it with a real drop shadow. */
+        @media (min-width: 320px), (min-height: 400px) {
+            html {
+                padding: 18px;
+                /* A real backdrop stops the transparent canvas showing through
+                   as white when the popup is opened as a normal page. */
+                background: var(--page);
+            }
+
+            body {
+                margin: 0 auto;
+                box-shadow: 10px 10px 0 rgba(20, 32, 79, 0.55);
+            }
+        }
+
+        /* ================= Brutalist ground ================= */
+        /* A flat field plus a faint dot grid. Nothing here blurs, glows or
+           moves: texture has to sit behind the type without competing with it,
+           and motion was reading as noise in a panel this small. */
+
+        .ground {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+            background:
+                radial-gradient(circle, rgba(247, 247, 242, 0.05) 1px, transparent 1.5px) 0 0 / 13px 13px,
+                linear-gradient(180deg, #1c5098 0%, #143f7c 52%, #0d2a5e 100%);
+        }
+
+        /* ---- Brutalist motion ----
+           Hard-edged geometry, no blur: it should read as printed matter
+           moving, not as light effects. Travel is continuous - an earlier
+           steps() version advanced in visible jumps and juddered badly on a
+           panel this small.
+
+           Structure is three parallax bands rather than one flat texture:
+           coarse blocks travel fastest, mid ticks cross them, fine dots sit
+           almost still. Depth comes from speed differences, not from opacity
+           tricks. Every layer is transform-only and promoted with will-change,
+           so nothing here can trigger layout or paint while it animates. */
+
+        /* --- Band 1: vertical tick rules, two lanes, counter-direction --- */
+        .ground-ticks {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            width: 52px;
+            background: repeating-linear-gradient(
+                180deg,
+                rgba(247, 247, 242, 0.085) 0 12px,
+                transparent 12px 26px
+            );
+            will-change: transform;
+            animation: tick-rise 8s linear infinite;
+        }
+
+        @keyframes tick-rise {
+            from { transform: translate3d(0, 26px, 0); }
+            to   { transform: translate3d(0, 0, 0); }
+        }
+
+        /* A second tick lane on the right edge, running the other way */
+        .ground-ticks--right {
+            left: auto;
+            right: 0;
+            width: 30px;
+            background: repeating-linear-gradient(
+                180deg,
+                rgba(125, 211, 252, 0.10) 0 8px,
+                transparent 8px 22px
+            );
+            animation: tick-fall 11s linear infinite;
+        }
+
+        @keyframes tick-fall {
+            from { transform: translate3d(0, 0, 0); }
+            to   { transform: translate3d(0, 22px, 0); }
+        }
+
+        /* --- Band 2: diagonal hatch, slowest, base texture --- */
+        .ground::before {
+            content: '';
+            position: absolute;
+            inset: -30%;
+            background: repeating-linear-gradient(
+                45deg,
+                rgba(247, 247, 242, 0.04) 0 2px,
+                transparent 2px 13px
+            );
+            will-change: transform;
+            animation: hatch-drift 17s linear infinite;
+        }
+
+        @keyframes hatch-drift {
+            from { transform: translate3d(0, 0, 0); }
+            to   { transform: translate3d(52px, 52px, 0); }
+        }
+
+        /* --- Band 3: hard rules drifting, no sweep --- */
+        .ground::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            width: 26%;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(125, 211, 252, 0.05) 38%,
+                rgba(125, 211, 252, 0.11) 50%,
+                rgba(125, 211, 252, 0.05) 62%,
+                transparent 100%
+            );
+            will-change: transform;
+            animation: rule-drift 19s linear infinite;
+        }
+
+        /* Drifts steadily and wraps off-panel, rather than sweeping across and
+               back. A full sweep reads as a carousel or a loading bar; a slow
+               one-way drift reads as texture. */
+        @keyframes rule-drift {
+            from { transform: translate3d(-30%, 0, 0); }
+            to   { transform: translate3d(430%, 0, 0); }
+        }
+
+        /* --- Cross bars: horizontal, on a third period, sells the parallax --- */
+        .ground-bars {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 22%;
+            background: repeating-linear-gradient(
+                90deg,
+                rgba(247, 247, 242, 0.07) 0 2px,
+                transparent 2px 34px
+            );
+            will-change: transform;
+            animation: bar-slide 14s linear infinite;
+        }
+
+        @keyframes bar-slide {
+            from { transform: translate3d(0, 0, 0); }
+            to   { transform: translate3d(-34px, 0, 0); }
+        }
+
+        /* Honour the OS reduced-motion setting: freeze every animated layer */
+        @media (prefers-reduced-motion: reduce) {
+            .stack__card::before,
+            .ground::before,
+            .ground::after,
+            .ground-ticks,
+            .ground-bars {
+                animation: none !important;
+            }
+        }
+
+        /* ================= UI sits above the scene ================= */
+        .header,
+        .initial-state,
+        .processing-state,
+        .complete-state,
+        .error-state {
+            position: relative;
+            z-index: 1;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 24px;
+            margin-bottom: 14px;
         }
 
         .title {
-            font-family: 'Syne', sans-serif;
-            font-size: 24px;
+            /* Matches the Organize tabs button */
+            font-family: 'Space Grotesk', 'DM Sans', sans-serif;
+            font-size: 30px;
             font-weight: 700;
-            color: #7c3aed;
-            margin-bottom: 8px;
-            letter-spacing: -0.5px;
+            line-height: 1.05;
+            letter-spacing: -1px;
+            text-transform: uppercase;
+            color: var(--chalk);
+            text-shadow: 3px 3px 0 var(--ink);
         }
 
-        .subtitle {
-            font-size: 13px;
-            color: #9ca3af;
-            font-weight: 400;
-        }
-
-        .tab-count {
-            background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 500;
-            text-align: center;
-            margin-bottom: 20px;
+        /* Tab count and speed capsule share one line, centred as a pair */
+        .status-row {
             display: flex;
+            /* center, not stretch: a stretched flex item takes the row's full
+               cross-size and the capsules balloon vertically */
             align-items: center;
             justify-content: center;
             gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .tab-count {
+            /* Height is controlled here. box-sizing is border-box (set globally),
+               so this number includes the 3px top and bottom border. */
+            height: 34px;
+            line-height: 1;
+
+            background: var(--chalk);
+            color: var(--ink);
+            padding: 0 12px;
+            border: var(--brutal) solid var(--ink);
+            border-radius: var(--r-badge);
+            box-shadow: 2px 2px 0 var(--ink);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+            font-family: 'Space Grotesk', 'DM Sans', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
         }
 
         .tab-count-icon {
-            width: 16px;
-            height: 16px;
-            opacity: 0.9;
+            display: none;
+        }
+
+        /* Live download speed. Same chalk treatment as the tab count beside it: the
+           two read as a matched pair. Rounded rectangle, not a full pill. */
+        .speed-pill {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 34px;
+            padding: 0 12px;
+            background: var(--chalk);
+            color: var(--ink);
+            border: var(--brutal) solid var(--ink);
+            border-radius: var(--r-badge);
+            box-shadow: 2px 2px 0 var(--ink);
+            font-family: 'Space Grotesk', 'DM Sans', sans-serif;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        /* tabular-nums keeps the digits from shifting width as the value changes */
+        .speed-value {
+            color: var(--ink);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Offline and error are the states that depart from the chalk treatment */
+        .speed-pill[data-state="offline"],
+        .speed-pill[data-state="error"] {
+            background: #ff8080;
+            border-color: var(--ink);
+        }
+
+        .speed-pill[data-state="offline"] .speed-value,
+        .speed-pill[data-state="error"] .speed-value {
+            color: var(--ink);
         }
 
         .main-button {
             width: 100%;
-            background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            color: white;
-            border: none;
-            padding: 14px 20px;
-            border-radius: 12px;
+            background: var(--chalk);
+            color: var(--ink);
+            border: var(--brutal) solid var(--ink);
+            padding: 16px 20px;
+            border-radius: var(--r-card);
+            box-shadow: var(--press-x) var(--press-y) 0 var(--ink);
             font-size: 15px;
-            font-weight: 600;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
             cursor: pointer;
-            transition: all 0.3s ease;
-            margin-bottom: 16px;
+            transition: transform 0.06s ease, box-shadow 0.06s ease;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            font-family: 'DM Sans', sans-serif;
+            font-family: 'Space Grotesk', 'DM Sans', sans-serif;
         }
 
         .main-button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.3);
+            transform: translate(2px, 2px);
+            box-shadow: 3px 3px 0 var(--ink);
         }
 
         .main-button:active {
-            transform: translateY(0);
+            transform: translate(var(--press-x), var(--press-y));
+            box-shadow: 0 0 0 var(--ink);
+        }
+
+        .main-button:focus-visible {
+            outline: var(--brutal) solid var(--chalk);
+            outline-offset: 3px;
         }
 
         .main-button:disabled {
-            opacity: 0.6;
+            background: #c9d6ff;
+            color: #6c7fb8;
             cursor: not-allowed;
             transform: none;
+            box-shadow: var(--press-x) var(--press-y) 0 var(--ink);
         }
 
         .loading {
             display: block;
             text-align: center;
-            padding: 20px;
+            padding: 10px 0 0;
         }
 
-        .spinner {
-            width: 32px;
-            height: 32px;
-            border: 3px solid rgba(124, 58, 237, 0.2);
-            border-top: 3px solid #7c3aed;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+        /* ---- Loader (adapted from Uiverse.io by jaykdoe) ----
+           Every dimension inside .stack is expressed in em, so the whole
+           composition scales from a single font-size. 15px gives a "high
+           medium" footprint (~180px) without touching the geometry. */
+        .loader {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
             margin: 0 auto 12px;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .stack {
+            --stack-dur: 3s;
+            --stack-delay: 0.05;
+            --stack-spacing: 10%;
+            --hue: 220;   /* was undefined upstream, which voided the box-shadow */
+            overflow: hidden;
+            position: relative;
+            width: 12em;
+            height: 12em;
+        }
+
+        .stack__card {
+            aspect-ratio: 1;
+            position: absolute;
+            inset: 0;
+            top: var(--stack-spacing);
+            margin: auto;
+            width: 50%;
+            transform: rotateX(45deg) rotateZ(-45deg);
+            transform-style: preserve-3d;
+        }
+
+        .stack__card::before {
+            animation: card var(--stack-dur) infinite;
+            background-image: url("data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjIwMHB4IiB3aWR0aD0iMjAwcHgiIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB4bWw6c3BhY2U9InByZXNlcnZlIiBmaWxsPSIjMDAwMDAwIj48ZyBpZD0iU1ZHUmVwb19iZ0NhcnJpZXIiIHN0cm9rZS13aWR0aD0iMCI+PC9nPjxnIGlkPSJTVkdSZXBvX3RyYWNlckNhcnJpZXIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PC9nPjxnIGlkPSJTVkdSZXBvX2ljb25DYXJyaWVyIj4gPHBhdGggc3R5bGU9ImZpbGw6I0Q3REVFRDsiIGQ9Ik0zODAuODU0LDUwNEgxMzEuMTQ2QzExNi43MDYsNTA0LDEwNSw0OTIuMjk0LDEwNSw0NzcuODU0VjM0LjE0NkMxMDUsMTkuNzA2LDExNi43MDYsOCwxMzEuMTQ2LDggaDI0OS43MDdDMzk1LjI5NCw4LDQwNywxOS43MDYsNDA3LDM0LjE0NnY0NDMuNzA3QzQwNyw0OTIuMjk0LDM5NS4yOTQsNTA0LDM4MC44NTQsNTA0eiI+PC9wYXRoPiA8Zz4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0zNzYsMEgxMzZjLTIyLjA1NiwwLTQwLDE3Ljk0NC00MCw0MHY0MzJjMCwyMi4wNTYsMTcuOTQ0LDQwLDQwLDQwaDI0MGMyMi4wNTYsMCw0MC0xNy45NDQsNDAtNDAgVjQwQzQxNiwxNy45NDQsMzk4LjA1NiwwLDM3NiwweiBNNDAwLDQ3MmMwLDEzLjIzMy0xMC43NjYsMjQtMjQsMjRIMTM2Yy0xMy4yMzQsMC0yNC0xMC43NjctMjQtMjRWNDBjMC0xMy4yMzMsMTAuNzY2LTI0LDI0LTI0IGgyNDBjMTMuMjM0LDAsMjQsMTAuNzY3LDI0LDI0VjQ3MnoiPjwvcGF0aD4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0zNzYsODcuOTk4VjQ4YzAtNC40MTgtMy41ODItOC04LThoLTM5Ljk5OGMtMC4wMDEsMC0wLjAwMywwLTAuMDA1LDBoLTM5Ljk5NSBjLTAuMDAxLDAtMC4wMDMsMC0wLjAwNSwwaC0zOS45OTVjLTAuMDAxLDAtMC4wMDMsMC0wLjAwNSwwSDE0NGMtNC40MTgsMC04LDMuNTgyLTgsOHYxNS45OThjMCwwLjAwMSwwLDAuMDAzLDAsMC4wMDV2MzkuOTk1IGMwLDAuMDAxLDAsMC4wMDMsMCwwLjAwNXYzOS45OTVjMCwwLjAwMSwwLDAuMDAzLDAsMC4wMDV2MzkuOTk1YzAsMC4wMDEsMCwwLjAwMywwLDAuMDA1djM5Ljk5NWMwLDAuMDAxLDAsMC4wMDMsMCwwLjAwNXYzOS45OTUgYzAsMC4wMDEsMCwwLjAwMywwLDAuMDA1djM5Ljk5NWMwLDAuMDAxLDAsMC4wMDMsMCwwLjAwNXYzOS45OTVjMCwwLjAwMSwwLDAuMDAzLDAsMC4wMDV2MzkuOTk1YzAsMC4wMDEsMCwwLjAwMywwLDAuMDA1djM5Ljk5NSBjMCwwLjAwMSwwLDAuMDAzLDAsMC4wMDVWNDY0YzAsNC40MTgsMy41ODIsOCw4LDhoMjI0YzQuNDE4LDAsOC0zLjU4Miw4LTh2LTE1Ljk5OGMwLTAuMDAxLDAtMC4wMDMsMC0wLjAwNXYtMzkuOTk1IGMwLTAuMDAxLDAtMC4wMDMsMC0wLjAwNXYtMzkuOTk1YzAtMC4wMDEsMC0wLjAwMywwLTAuMDA1di0zOS45OTVjMC0wLjAwMSwwLTAuMDAzLDAtMC4wMDV2LTM5Ljk5NWMwLTAuMDAxLDAtMC4wMDMsMC0wLjAwNSB2LTM5Ljk5NWMwLTAuMDAxLDAtMC4wMDMsMC0wLjAwNXYtMzkuOTk1YzAtMC4wMDEsMC0wLjAwMywwLTAuMDA1di0zOS45OTVjMC0wLjAwMSwwLTAuMDAzLDAtMC4wMDV2LTM5Ljk5NSBjMC0wLjAwMSwwLTAuMDAzLDAtMC4wMDVWODguMDAyQzM3Niw4OC4wMDEsMzc2LDg3Ljk5OSwzNzYsODcuOTk4eiBNMzA3LjMxMyw0NTZMMTUyLDMwMC42ODd2LTE3LjM3M0wzMjQuNjg3LDQ1NkgzMDcuMzEzeiBNMjY3LjMxMyw0NTZMMTUyLDM0MC42ODd2LTE3LjM3M0wyODQuNjg3LDQ1NkgyNjcuMzEzeiBNMjI3LjMxMyw0NTZMMTUyLDM4MC42ODd2LTE3LjM3M0wyNDQuNjg3LDQ1NkgyMjcuMzEzeiBNMTg3LjMxMyw0NTYgTDE1Miw0MjAuNjg3di0xNy4zNzNMMjA0LjY4Nyw0NTZIMTg3LjMxM3ogTTE1MiwyMDMuMzEzbDIwOCwyMDh2MTcuMzczbC0yMDgtMjA4VjIwMy4zMTN6IE0xNTIsMTgwLjY4N3YtMTcuMzczbDIwOCwyMDh2MTcuMzczIEwxNTIsMTgwLjY4N3ogTTE1MiwxNDAuNjg3di0xNy4zNzNsMjA4LDIwOHYxNy4zNzNMMTUyLDE0MC42ODd6IE0xNTIsMTAwLjY4N1Y4My4zMTNsMjA4LDIwOHYxNy4zNzNMMTUyLDEwMC42ODd6IE0yMDQuNjg3LDU2IEwzNjAsMjExLjMxM3YxNy4zNzNMMTg3LjMxMyw1NkgyMDQuNjg3eiBNMjI3LjMxMyw1NmgxNy4zNzNMMzYwLDE3MS4zMTN2MTcuMzczTDIyNy4zMTMsNTZ6IE0yNjcuMzEzLDU2aDE3LjM3M0wzNjAsMTMxLjMxMyB2MTcuMzczTDI2Ny4zMTMsNTZ6IE0zMDcuMzEzLDU2aDE3LjM3M0wzNjAsOTEuMzEzdjE3LjM3M0wzMDcuMzEzLDU2eiBNMzYwLDY4LjY4N0wzNDcuMzEzLDU2SDM2MFY2OC42ODd6IE0xNjQuNjg3LDU2IEwzNjAsMjUxLjMxM3YxNy4zNzNsLTIwOC0yMDhWNTZIMTY0LjY4N3ogTTE1Miw0NDMuMzEzTDE2NC42ODcsNDU2SDE1MlY0NDMuMzEzeiBNMzQ3LjMxMyw0NTZMMTUyLDI2MC42ODd2LTE3LjM3M2wyMDgsMjA4VjQ1NiBIMzQ3LjMxM3oiPjwvcGF0aD4gPC9nPiA8L2c+PC9zdmc+");
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: 95% 95%;
+            border-radius: 7.5%;
+            box-shadow: -0.5em 0.5em 1.5em hsl(var(--hue), 90%, 15%, 0.1);
+            content: "";
+            display: block;
+            position: absolute;
+            inset: 0;
+        }
+
+        .stack__card:nth-child(2) {
+            top: 0;
+        }
+
+        .stack__card:nth-child(2)::before {
+            animation-delay: calc(var(--stack-dur) * (-1 + var(--stack-delay)));
+            background-color: transparent;
+            background-image: url("data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjIwMHB4IiB3aWR0aD0iMjAwcHgiIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB4bWw6c3BhY2U9InByZXNlcnZlIiBmaWxsPSIjMDAwMDAwIj48ZyBpZD0iU1ZHUmVwb19iZ0NhcnJpZXIiIHN0cm9rZS13aWR0aD0iMCI+PC9nPjxnIGlkPSJTVkdSZXBvX3RyYWNlckNhcnJpZXIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PC9nPjxnIGlkPSJTVkdSZXBvX2ljb25DYXJyaWVyIj4gPHBhdGggc3R5bGU9ImZpbGw6I0VGRjJGQTsiIGQ9Ik0zODEuNzY3LDUwM0gxMzAuMjMzQzExNS43NDUsNTAzLDEwNCw0OTEuMjU1LDEwNCw0NzYuNzY4VjMzLjIzM0MxMDQsMTguNzQ1LDExNS43NDUsNywxMzAuMjMzLDcgaDI1MS41MzRDMzk2LjI1NSw3LDQwOCwxOC43NDUsNDA4LDMzLjIzM3Y0NDMuNTM1QzQwOCw0OTEuMjU1LDM5Ni4yNTUsNTAzLDM4MS43NjcsNTAzeiI+PC9wYXRoPiA8Zz4gPGNpcmNsZSBzdHlsZT0iZmlsbDojNTE1MjYyOyIgY3g9IjI4OCIgY3k9IjI3MiIgcj0iMzEiPjwvY2lyY2xlPiA8Y2lyY2xlIHN0eWxlPSJmaWxsOiM1MTUyNjI7IiBjeD0iMjI0IiBjeT0iMjcyIiByPSIzMSI+PC9jaXJjbGU+IDxjaXJjbGUgc3R5bGU9ImZpbGw6IzUxNTI2MjsiIGN4PSIyNTYiIGN5PSIyMTYiIHI9IjMxIj48L2NpcmNsZT4gPGNpcmNsZSBzdHlsZT0iZmlsbDojNTE1MjYyOyIgY3g9IjE4MCIgY3k9Ijc2IiByPSIxMSI+PC9jaXJjbGU+IDxjaXJjbGUgc3R5bGU9ImZpbGw6IzUxNTI2MjsiIGN4PSIxNDgiIGN5PSI3NiIgcj0iMTEiPjwvY2lyY2xlPiA8Y2lyY2xlIHN0eWxlPSJmaWxsOiM1MTUyNjI7IiBjeD0iMTY0IiBjeT0iNTIiIHI9IjExIj48L2NpcmNsZT4gPGNpcmNsZSBzdHlsZT0iZmlsbDojNTE1MjYyOyIgY3g9IjM2NCIgY3k9IjQzNiIgcj0iMTEiPjwvY2lyY2xlPiA8Y2lyY2xlIHN0eWxlPSJmaWxsOiM1MTUyNjI7IiBjeD0iMzMyIiBjeT0iNDM2IiByPSIxMSI+PC9jaXJjbGU+IDxjaXJjbGUgc3R5bGU9ImZpbGw6IzUxNTI2MjsiIGN4PSIzNDgiIGN5PSI0NjAiIHI9IjExIj48L2NpcmNsZT4gPC9nPiA8Zz4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0zNzYsMEgxMzZjLTIyLjA1NiwwLTQwLDE3Ljk0NC00MCw0MHY0MzJjMCwyMi4wNTYsMTcuOTQ0LDQwLDQwLDQwaDI0MGMyMi4wNTYsMCw0MC0xNy45NDQsNDAtNDAgVjQwQzQxNiwxNy45NDQsMzk4LjA1NiwwLDM3NiwweiBNNDAwLDQ3MmMwLDEzLjIzMy0xMC43NjYsMjQtMjQsMjRIMTM2Yy0xMy4yMzQsMC0yNC0xMC43NjctMjQtMjRWNDBjMC0xMy4yMzMsMTAuNzY2LTI0LDI0LTI0IGgyNDBjMTMuMjM0LDAsMjQsMTAuNzY3LDI0LDI0VjQ3MnoiPjwvcGF0aD4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0zMDQsNDU2SDE1MlYxMjhjMC00LjQxOC0zLjU4Mi04LTgtOHMtOCwzLjU4Mi04LDh2MzM2YzAsNC40MTgsMy41ODIsOCw4LDhoMTYwIGM0LjQxOCwwLDgtMy41ODIsOC04UzMwOC40MTgsNDU2LDMwNCw0NTZ6Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMjA4LDU2aDE1MnYzMjhjMCw0LjQxOCwzLjU4Miw4LDgsOHM4LTMuNTgyLDgtOFY0OGMwLTQuNDE4LTMuNTgyLTgtOC04SDIwOGMtNC40MTgsMC04LDMuNTgyLTgsOCBTMjAzLjU4Miw1NiwyMDgsNTZ6Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMjg4LDMxMmMyMi4wNTYsMCw0MC0xNy45NDQsNDAtNDBjMC0yMC41MjMtMTUuNTQtMzcuNDc4LTM1LjQ2OS0zOS43MzYgQzI5NC43NTMsMjI3LjI5MSwyOTYsMjIxLjc5LDI5NiwyMTZjMC0yMi4wNTYtMTcuOTQ0LTQwLTQwLTQwcy00MCwxNy45NDQtNDAsNDBjMCw1Ljc5LDEuMjQ3LDExLjI5MSwzLjQ2OSwxNi4yNjQgQzE5OS41NCwyMzQuNTIyLDE4NCwyNTEuNDc3LDE4NCwyNzJjMCwyMi4wNTYsMTcuOTQ0LDQwLDQwLDQwYzguOTk4LDAsMTcuMzEtMi45ODgsMjQtOC4wMjJWMzEyYzAsNC40MTEtMy41ODksOC04LDhoLTggYy00LjQxOCwwLTgsMy41ODItOCw4czMuNTgyLDgsOCw4aDQ4YzQuNDE4LDAsOC0zLjU4Miw4LThzLTMuNTgyLTgtOC04aC04Yy00LjQxMSwwLTgtMy41ODktOC04di04LjAyMiBDMjcwLjY5LDMwOS4wMTIsMjc5LjAwMiwzMTIsMjg4LDMxMnogTTMxMiwyNzJjMCwxMy4yMzQtMTAuNzY3LDI0LTI0LDI0cy0yNC0xMC43NjYtMjQtMjRjMC0xMy4yMzMsMTAuNzY3LTI0LDI0LTI0IFMzMTIsMjU4Ljc2NywzMTIsMjcyeiBNMjU2LDE5MmMxMy4yMzMsMCwyNCwxMC43NjcsMjQsMjRjMCwxMy4yMzQtMTAuNzY3LDI0LTI0LDI0cy0yNC0xMC43NjYtMjQtMjQgQzIzMiwyMDIuNzY3LDI0Mi43NjcsMTkyLDI1NiwxOTJ6IE0yMjQsMjk2Yy0xMy4yMzMsMC0yNC0xMC43NjYtMjQtMjRjMC0xMy4yMzMsMTAuNzY3LTI0LDI0LTI0czI0LDEwLjc2NywyNCwyNCBDMjQ4LDI4NS4yMzQsMjM3LjIzMywyOTYsMjI0LDI5NnoiPjwvcGF0aD4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0xNjQsODcuOTQ5YzMuNjUxLDQuODc1LDkuNDU0LDguMDUxLDE2LDguMDUxYzExLjAyOCwwLDIwLTguOTcyLDIwLTIwIGMwLTkuODI3LTcuMTMtMTguMDAzLTE2LjQ4NS0xOS42NzFDMTgzLjgyNCw1NC45MzMsMTg0LDUzLjQ4OCwxODQsNTJjMC0xMS4wMjgtOC45NzItMjAtMjAtMjBzLTIwLDguOTcyLTIwLDIwIGMwLDEuNDg4LDAuMTc2LDIuOTMzLDAuNDg1LDQuMzI5QzEzNS4xMyw1Ny45OTcsMTI4LDY2LjE3MywxMjgsNzZjMCwxMS4wMjgsOC45NzIsMjAsMjAsMjBDMTU0LjU0Niw5NiwxNjAuMzQ5LDkyLjgyNSwxNjQsODcuOTQ5eiBNMTgwLDgwYy0yLjIwNiwwLTQtMS43OTQtNC00czEuNzk0LTQsNC00czQsMS43OTQsNCw0UzE4Mi4yMDYsODAsMTgwLDgweiBNMTY0LDQ4YzIuMjA2LDAsNCwxLjc5NCw0LDRzLTEuNzk0LDQtNCw0cy00LTEuNzk0LTQtNCBTMTYxLjc5NCw0OCwxNjQsNDh6IE0xNDQsNzZjMC0yLjIwNiwxLjc5NC00LDQtNHM0LDEuNzk0LDQsNHMtMS43OTQsNC00LDRTMTQ0LDc4LjIwNiwxNDQsNzZ6Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMTYwLDk2Yy00LjQxOCwwLTgsMy41ODItOCw4czMuNTgyLDgsOCw4aDhjNC40MTgsMCw4LTMuNTgyLDgtOHMtMy41ODItOC04LThIMTYweiI+PC9wYXRoPiA8cGF0aCBzdHlsZT0iZmlsbDojMkQyQjI5OyIgZD0iTTM2NCw0MTZjLTYuNTQ2LDAtMTIuMzQ5LDMuMTc1LTE2LDguMDUxYy0zLjY1MS00Ljg3NS05LjQ1NC04LjA1MS0xNi04LjA1MSBjLTExLjAyOCwwLTIwLDguOTcyLTIwLDIwYzAsOS44MjcsNy4xMywxOC4wMDMsMTYuNDg1LDE5LjY3MWMtMC4zMSwxLjM5Ni0wLjQ4NSwyLjg0MS0wLjQ4NSw0LjMyOWMwLDExLjAyOCw4Ljk3MiwyMCwyMCwyMCBzMjAtOC45NzIsMjAtMjBjMC0xLjQ4Ny0wLjE3Ni0yLjkzMy0wLjQ4NS00LjMyOUMzNzYuODcsNDU0LjAwMywzODQsNDQ1LjgyNywzODQsNDM2QzM4NCw0MjQuOTcyLDM3NS4wMjgsNDE2LDM2NCw0MTZ6IE0zMzIsNDMyIGMyLjIwNiwwLDQsMS43OTQsNCw0cy0xLjc5NCw0LTQsNHMtNC0xLjc5NC00LTRTMzI5Ljc5NCw0MzIsMzMyLDQzMnogTTM0OCw0NjRjLTIuMjA2LDAtNC0xLjc5NC00LTRzMS43OTQtNCw0LTRzNCwxLjc5NCw0LDQgUzM1MC4yMDYsNDY0LDM0OCw0NjR6IE0zNjQsNDQwYy0yLjIwNiwwLTQtMS43OTQtNC00czEuNzk0LTQsNC00czQsMS43OTQsNCw0UzM2Ni4yMDYsNDQwLDM2NCw0NDB6Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMzQ0LDQwMGMtNC40MTgsMC04LDMuNTgyLTgsOHMzLjU4Miw4LDgsOGg4YzQuNDE4LDAsOC0zLjU4Miw4LThzLTMuNTgyLTgtOC04SDM0NHoiPjwvcGF0aD4gPC9nPiA8L2c+PC9zdmc+");
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: 95% 95%;
+        }
+
+        .stack__card:nth-child(3) {
+            top: calc(var(--stack-spacing) * -1);
+        }
+
+        .stack__card:nth-child(3)::before {
+            animation-delay: calc(var(--stack-dur) * (-1 + var(--stack-delay) * 2));
+            background-color: transparent;
+            background-image: url("data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjIwMHB4IiB3aWR0aD0iMjAwcHgiIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB4bWw6c3BhY2U9InByZXNlcnZlIiBmaWxsPSIjMDAwMDAwIj48ZyBpZD0iU1ZHUmVwb19iZ0NhcnJpZXIiIHN0cm9rZS13aWR0aD0iMCI+PC9nPjxnIGlkPSJTVkdSZXBvX3RyYWNlckNhcnJpZXIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PC9nPjxnIGlkPSJTVkdSZXBvX2ljb25DYXJyaWVyIj4gPHBhdGggc3R5bGU9ImZpbGw6I0VGRjJGQTsiIGQ9Ik0zODIuNzUsNTAzaC0yNTIuNWMtMTQuNDk4LDAtMjYuMjUtMTEuNzUyLTI2LjI1LTI2LjI1VjM0LjI1QzEwNCwxOS43NTIsMTE1Ljc1Miw4LDEzMC4yNSw4aDI1Mi41IEMzOTcuMjQ4LDgsNDA5LDE5Ljc1Miw0MDksMzQuMjV2NDQyLjVDNDA5LDQ5MS4yNDgsMzk3LjI0OCw1MDMsMzgyLjc1LDUwM3oiPjwvcGF0aD4gPGc+IDxwYXRoIHN0eWxlPSJmaWxsOiNGRjY0NjQ7IiBkPSJNMjU5LjgxNCwxODkuOTA2YzE2LjMxOCwyMS4xMDcsNDEuMjAxLDQ1Ljk5Myw2Mi4zMDQsNjIuMzE0YzIuNTA4LDEuOTM5LDIuNTA4LDUuNjg4LDAsNy42MjggYy0yMS4xMDMsMTYuMzItNDUuOTg1LDQxLjIwNy02Mi4zMDQsNjIuMzE0Yy0xLjkzOSwyLjUwOS01LjY4OSwyLjUwOS03LjYyOSwwYy0xNi4zMTgtMjEuMTA3LTQxLjIwMS00NS45OTQtNjIuMzA0LTYyLjMxNCBjLTIuNTA4LTEuOTM5LTIuNTA4LTUuNjg4LDAtNy42MjhjMjEuMTAzLTE2LjMyMSw0NS45ODUtNDEuMjA3LDYyLjMwNC02Mi4zMTRDMjU0LjEyNSwxODcuMzk3LDI1Ny44NzUsMTg3LjM5NywyNTkuODE0LDE4OS45MDZ6Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiNGRjY0NjQ7IiBkPSJNMTY5LjgsNDAuODhjNy42OCw5LjkzMywxOS4zODksMjEuNjQ0LDI5LjMyLDI5LjMyNWMxLjE4LDAuOTEzLDEuMTgsMi42NzcsMCwzLjU4OSBjLTkuOTMxLDcuNjgtMjEuNjQxLDE5LjM5Mi0yOS4zMiwyOS4zMjVjLTAuOTEzLDEuMTgxLTIuNjc3LDEuMTgxLTMuNTksMGMtNy42NzktOS45MzMtMTkuMzg5LTIxLjY0NS0yOS4zMi0yOS4zMjUgYy0xLjE4LTAuOTEzLTEuMTgtMi42NzcsMC0zLjU4OWM5LjkzMS03LjY4MSwyMS42NDEtMTkuMzkzLDI5LjMyLTI5LjMyNUMxNjcuMTIzLDM5LjY5OSwxNjguODg4LDM5LjY5OSwxNjkuOCw0MC44OHoiPjwvcGF0aD4gPHBhdGggc3R5bGU9ImZpbGw6I0ZGNjQ2NDsiIGQ9Ik0zNDIuMjA0LDQ3MS4xMjVjLTcuNjc5LTkuOTMzLTE5LjM4OS0yMS42NDQtMjkuMzItMjkuMzI1Yy0xLjE4LTAuOTEzLTEuMTgtMi42NzcsMC0zLjU4OSBjOS45MzItNy42OCwyMS42NDEtMTkuMzkyLDI5LjMyLTI5LjMyNWMwLjkxMy0xLjE4MSwyLjY3OC0xLjE4MSwzLjU5LDBjNy42NzksOS45MzMsMTkuMzg5LDIxLjY0NSwyOS4zMiwyOS4zMjUgYzEuMTgsMC45MTMsMS4xOCwyLjY3NywwLDMuNTg5Yy05LjkzMSw3LjY4MS0yMS42NDEsMTkuMzkzLTI5LjMyLDI5LjMyNUMzNDQuODgyLDQ3Mi4zMDYsMzQzLjExNyw0NzIuMzA2LDM0Mi4yMDQsNDcxLjEyNXoiPjwvcGF0aD4gPC9nPiA8Zz4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0zNzYsMEgxMzZjLTIyLjA1NiwwLTQwLDE3Ljk0NC00MCw0MHY0MzJjMCwyMi4wNTYsMTcuOTQ0LDQwLDQwLDQwaDI0MGMyMi4wNTYsMCw0MC0xNy45NDQsNDAtNDAgVjQwQzQxNiwxNy45NDQsMzk4LjA1NiwwLDM3NiwweiBNNDAwLDQ3MmMwLDEzLjIzNC0xMC43NjYsMjQtMjQsMjRIMTM2Yy0xMy4yMzQsMC0yNC0xMC43NjYtMjQtMjRWNDBjMC0xMy4yMzMsMTAuNzY2LTI0LDI0LTI0IGgyNDBjMTMuMjM0LDAsMjQsMTAuNzY3LDI0LDI0VjQ3MnoiPjwvcGF0aD4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0yOTYsNDU2SDE1MlYxMjBjMC00LjQxOC0zLjU4Mi04LTgtOHMtOCwzLjU4Mi04LDh2MzQ0YzAsNC40MTgsMy41ODIsOCw4LDhoMTUyIGM0LjQxOCwwLDgtMy41ODIsOC04UzMwMC40MTgsNDU2LDI5Niw0NTZ6Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMjE2LDU2aDE0NHYzMzZjMCw0LjQxOCwzLjU4Miw4LDgsOHM4LTMuNTgyLDgtOFY0OGMwLTQuNDE4LTMuNTgyLTgtOC04SDIxNmMtNC40MTgsMC04LDMuNTgyLTgsOCBTMjExLjU4Miw1NiwyMTYsNTZ6Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMjYyLjQ3LDE3OS4yOTVjLTEuNTA1LTIuMDctMy45MS0zLjI5NS02LjQ3LTMuMjk1cy00Ljk2NCwxLjIyNS02LjQ3LDMuMjk1IGMtMTYuODU5LDIzLjE4MS00Ny4wNTQsNTMuMzc2LTcwLjIzNiw3MC4yMzVjLTIuMDcsMS41MDUtMy4yOTQsMy45MS0zLjI5NCw2LjQ3czEuMjI1LDQuOTY1LDMuMjk0LDYuNDcgYzIzLjE4MiwxNi44NTksNTMuMzc2LDQ3LjA1NSw3MC4yMzYsNzAuMjM1YzEuNTA1LDIuMDcsMy45MSwzLjI5NSw2LjQ3LDMuMjk1czQuOTY0LTEuMjI1LDYuNDctMy4yOTUgYzE2Ljg1OS0yMy4xODEsNDcuMDU0LTUzLjM3Niw3MC4yMzYtNzAuMjM1YzIuMDctMS41MDUsMy4yOTQtMy45MSwzLjI5NC02LjQ3cy0xLjIyNS00Ljk2NC0zLjI5NC02LjQ3IEMzMDkuNTI0LDIzMi42NzEsMjc5LjMyOSwyMDIuNDc2LDI2Mi40NywxNzkuMjk1eiBNMjU2LDMxNC44MjFjLTE2LjA1OC0yMC4xMzYtMzguNjg1LTQyLjc2My01OC44MjEtNTguODIxIGMyMC4xMzYtMTYuMDU4LDQyLjc2My0zOC42ODUsNTguODIxLTU4LjgyMWMxNi4wNTgsMjAuMTM2LDM4LjY4NSw0Mi43NjQsNTguODIxLDU4LjgyMSBDMjk0LjY4NSwyNzIuMDU4LDI3Mi4wNTgsMjk0LjY4NiwyNTYsMzE0LjgyMXoiPjwvcGF0aD4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0xNjEuNTMsMTA4LjcwNmMxLjUwNSwyLjA2OSwzLjkxLDMuMjk0LDYuNDcsMy4yOTRzNC45NjQtMS4yMjUsNi40Ny0zLjI5NCBjNy4yNTgtOS45OCwyMC4yNTYtMjIuOTc5LDMwLjIzNi0zMC4yMzZDMjA2Ljc3NSw3Ni45NjUsMjA4LDc0LjU2LDIwOCw3MnMtMS4yMjUtNC45NjQtMy4yOTQtNi40NyBjLTkuOTc5LTcuMjU4LTIyLjk3OC0yMC4yNTYtMzAuMjM2LTMwLjIzNkMxNzIuOTY0LDMzLjIyNSwxNzAuNTYsMzIsMTY4LDMycy00Ljk2NCwxLjIyNS02LjQ3LDMuMjk0IGMtNy4yNTgsOS45OC0yMC4yNTYsMjIuOTc4LTMwLjIzNiwzMC4yMzZDMTI5LjIyNSw2Ny4wMzYsMTI4LDY5LjQ0LDEyOCw3MnMxLjIyNSw0Ljk2NSwzLjI5NCw2LjQ3IEMxNDEuMjc0LDg1LjcyOCwxNTQuMjcyLDk4LjcyNiwxNjEuNTMsMTA4LjcwNnogTTE2OCw1Mi44MDhjNS43MDUsNi42MTcsMTIuNTc1LDEzLjQ4NywxOS4xOTIsMTkuMTkyIGMtNi42MTcsNS43MDUtMTMuNDg3LDEyLjU3NS0xOS4xOTIsMTkuMTkyYy01LjcwNS02LjYxNy0xMi41NzUtMTMuNDg3LTE5LjE5Mi0xOS4xOTJDMTU1LjQyNSw2Ni4yOTUsMTYyLjI5NSw1OS40MjUsMTY4LDUyLjgwOHoiPjwvcGF0aD4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0zODAuNzA2LDQzMy41M2MtOS45NzktNy4yNTgtMjIuOTc4LTIwLjI1Ni0zMC4yMzYtMzAuMjM2Yy0xLjUwNS0yLjA3LTMuOTEtMy4yOTQtNi40Ny0zLjI5NCBzLTQuOTY0LDEuMjI1LTYuNDcsMy4yOTRjLTcuMjU4LDkuOTgtMjAuMjU2LDIyLjk3OC0zMC4yMzYsMzAuMjM2Yy0yLjA3LDEuNTA1LTMuMjk0LDMuOTEtMy4yOTQsNi40N3MxLjIyNSw0Ljk2NSwzLjI5NCw2LjQ3IGM5Ljk3OSw3LjI1OCwyMi45NzgsMjAuMjU2LDMwLjIzNiwzMC4yMzZjMS41MDUsMi4wNywzLjkxLDMuMjk0LDYuNDcsMy4yOTRzNC45NjQtMS4yMjUsNi40Ny0zLjI5NCBjNy4yNTgtOS45NzksMjAuMjU2LTIyLjk3OCwzMC4yMzYtMzAuMjM2YzIuMDctMS41MDUsMy4yOTQtMy45MSwzLjI5NC02LjQ3UzM4Mi43NzUsNDM1LjAzNiwzODAuNzA2LDQzMy41M3ogTTM0NCw0NTkuMTkyIGMtNS43MDUtNi42MTctMTIuNTc1LTEzLjQ4Ny0xOS4xOTItMTkuMTkyYzYuNjE3LTUuNzA1LDEzLjQ4Ny0xMi41NzUsMTkuMTkyLTE5LjE5MmM1LjcwNSw2LjYxNywxMi41NzUsMTMuNDg3LDE5LjE5MiwxOS4xOTIgQzM1Ni41NzUsNDQ1LjcwNSwzNDkuNzA1LDQ1Mi41NzUsMzQ0LDQ1OS4xOTJ6Ij48L3BhdGg+IDwvZz4gPC9nPjwvc3ZnPg==");
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: 95% 95%;
+        }
+
+        .stack__card:nth-child(4) {
+            top: calc(var(--stack-spacing) * -2);
+        }
+
+        .stack__card:nth-child(4)::before {
+            animation-delay: calc(var(--stack-dur) * (-1 + var(--stack-delay) * 3));
+            background-color: transparent;
+            background-image: url("data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjIwMHB4IiB3aWR0aD0iMjAwcHgiIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB4bWw6c3BhY2U9InByZXNlcnZlIiBmaWxsPSIjMDAwMDAwIj48ZyBpZD0iU1ZHUmVwb19iZ0NhcnJpZXIiIHN0cm9rZS13aWR0aD0iMCI+PC9nPjxnIGlkPSJTVkdSZXBvX3RyYWNlckNhcnJpZXIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PC9nPjxnIGlkPSJTVkdSZXBvX2ljb25DYXJyaWVyIj4gPHBhdGggc3R5bGU9ImZpbGw6I0VGRjJGQTsiIGQ9Ik0zODAuODExLDUwNEgxMzAuMTg5QzExNS43MjYsNTA0LDEwNCw0OTIuMjc0LDEwNCw0NzcuODExVjM0LjE4OUMxMDQsMTkuNzI2LDExNS43MjYsOCwxMzAuMTg5LDggSDM4MC44MUMzOTUuMjc0LDgsNDA3LDE5LjcyNiw0MDcsMzQuMTg5VjQ3Ny44MUM0MDcsNDkyLjI3NCwzOTUuMjc0LDUwNCwzODAuODExLDUwNHoiPjwvcGF0aD4gPGc+IDxwYXRoIHN0eWxlPSJmaWxsOiM1MTUyNjI7IiBkPSJNMTkzLjA0NCwyNjEuMzYyYzAsMTkuMTE0LDE1LjQ1NywzNC42MSwzNC41MjQsMzQuNjFjMTEuNzk5LDAsMjIuMjA1LTUuOTQzLDI4LjQzMi0xNC45OTcgYzYuMjI3LDkuMDU0LDE2LjYzMywxNC45OTcsMjguNDMyLDE0Ljk5N2MxOS4wNjcsMCwzNC41MjQtMTUuNDk2LDM0LjUyNC0zNC42MWwwLDBDMzE4Ljk1NiwyMTkuNjI3LDI1NiwxODQsMjU2LDE4NCBTMTkzLjA0NCwyMTkuNjI3LDE5My4wNDQsMjYxLjM2MiI+PC9wYXRoPiA8cGF0aCBzdHlsZT0iZmlsbDojNTE1MjYyOyIgZD0iTTEzNi4wNjMsNzguNjQ4YzAsOS41NjcsNy44NTIsMTcuMzIzLDE3LjUzOCwxNy4zMjNjNS45OTMsMCwxMS4yNzktMi45NzQsMTQuNDQyLTcuNTA1IGMzLjE2Myw0LjUzMSw4LjQ0OSw3LjUwNSwxNC40NDIsNy41MDVjOS42ODYsMCwxNy41MzctNy43NTUsMTcuNTM3LTE3LjMyM2wwLDBjMC0yMC44OS0zMS45NzktMzguNzIyLTMxLjk3OS0zOC43MjIgUzEzNi4wNjMsNTcuNzU5LDEzNi4wNjMsNzguNjQ4Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiM1MTUyNjI7IiBkPSJNMzEyLjA0LDQzMy4yNzhjMC05LjU2Nyw3Ljg1Mi0xNy4zMjMsMTcuNTM4LTE3LjMyM2M1Ljk5NCwwLDExLjI3OSwyLjk3NSwxNC40NDIsNy41MDYgYzMuMTYzLTQuNTMxLDguNDQ5LTcuNTA2LDE0LjQ0My03LjUwNmM5LjY4NiwwLDE3LjUzNyw3Ljc1NiwxNy41MzcsMTcuMzIzbDAsMGMwLDIwLjg5LTMxLjk4LDM4LjcyMi0zMS45OCwzOC43MjIgUzMxMi4wNCw0NTQuMTY4LDMxMi4wNCw0MzMuMjc4Ij48L3BhdGg+IDwvZz4gPGc+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMzc2LDBIMTM2Yy0yMi4wNTYsMC00MCwxNy45NDQtNDAsNDB2NDMyYzAsMjIuMDU2LDE3Ljk0NCw0MCw0MCw0MGgyNDBjMjIuMDU2LDAsNDAtMTcuOTQ0LDQwLTQwIFY0MEM0MTYsMTcuOTQ0LDM5OC4wNTYsMCwzNzYsMHogTTQwMCw0NzJjMCwxMy4yMzQtMTAuNzY2LDI0LTI0LDI0SDEzNmMtMTMuMjM0LDAtMjQtMTAuNzY2LTI0LTI0VjQwYzAtMTMuMjMzLDEwLjc2Ni0yNCwyNC0yNCBoMjQwYzEzLjIzNCwwLDI0LDEwLjc2NywyNCwyNFY0NzJ6Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMjk2LDQ1NkgxNTJWMTM2YzAtNC40MTgtMy41ODItOC04LThzLTgsMy41ODItOCw4djMyOGMwLDQuNDE4LDMuNTgyLDgsOCw4aDE1MiBjNC40MTgsMCw4LTMuNTgyLDgtOFMzMDAuNDE4LDQ1NiwyOTYsNDU2eiI+PC9wYXRoPiA8cGF0aCBzdHlsZT0iZmlsbDojMkQyQjI5OyIgZD0iTTIxNiw1NmgxNDR2MzIwYzAsNC40MTgsMy41ODIsOCw4LDhzOC0zLjU4Miw4LThWNDhjMC00LjQxOC0zLjU4Mi04LTgtOEgyMTZjLTQuNDE4LDAtOCwzLjU4Mi04LDggUzIxMS41ODIsNTYsMjE2LDU2eiI+PC9wYXRoPiA8cGF0aCBzdHlsZT0iZmlsbDojMkQyQjI5OyIgZD0iTTI4NC40MzIsMzAzLjk3MmMyMy40NDgsMCw0Mi41MjQtMTkuMTE0LDQyLjUyNC00Mi42MDljMC00NS44NzItNjQuMjgtODIuNzc2LTY3LjAxNi04NC4zMjUgYy0yLjQ0NC0xLjM4My01LjQzNi0xLjM4My03Ljg4LDBjLTIuNzM2LDEuNTQ5LTY3LjAxNiwzOC40NTMtNjcuMDE2LDg0LjMyNWMwLDIzLjQ5NSwxOS4wNzYsNDIuNjA5LDQyLjUyNCw0Mi42MDkgYzcuMjQ3LDAsMTQuMjU0LTEuODU3LDIwLjQzMi01LjI1NFYzMDRjMCw0LjQxMS0zLjU4OSw4LTgsOGgtOGMtNC40MTgsMC04LDMuNTgyLTgsOHMzLjU4Miw4LDgsOGg0OGM0LjQxOCwwLDgtMy41ODIsOC04IHMtMy41ODItOC04LThoLThjLTQuNDExLDAtOC0zLjU4OS04LTh2LTUuMjgzQzI3MC4xNzgsMzAyLjExNCwyNzcuMTg1LDMwMy45NzIsMjg0LjQzMiwzMDMuOTcyeiBNMjI3LjU2OCwyODcuOTcyIGMtMTQuNjI1LDAtMjYuNTI0LTExLjkzNy0yNi41MjQtMjYuNjA5YzAtMzAuOTM4LDQxLjc2NC01OS42OTQsNTQuOTU2LTY4LjAwNGMxMy4xOTgsOC4zMTMsNTQuOTU2LDM3LjA2OSw1NC45NTYsNjguMDA0IGMwLDE0LjY3My0xMS44OTksMjYuNjA5LTI2LjUyNCwyNi42MDljLTguNzEsMC0xNi44NzUtNC4zMS0yMS44NC0xMS41MjljLTEuNDkzLTIuMTctMy45NTgtMy40NjYtNi41OTEtMy40NjYgcy01LjA5OSwxLjI5Ni02LjU5MSwzLjQ2NkMyNDQuNDQzLDI4My42NjIsMjM2LjI3OCwyODcuOTcyLDIyNy41NjgsMjg3Ljk3MnoiPjwvcGF0aD4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0xNjguMDQzLDk5LjUyNWM0LjE5OCwyLjg1Nyw5LjIxOCw0LjQ0NiwxNC40NDIsNC40NDZjMTQuMDgxLDAsMjUuNTM3LTExLjM1OSwyNS41MzctMjUuMzIzIGMwLTI0Ljg3LTMyLjM5LTQzLjY0OS0zNi4wODMtNDUuNzA5Yy0yLjQyMS0xLjM1LTUuMzcxLTEuMzUxLTcuNzkyLDBjLTMuNjkzLDIuMDYtMzYuMDg0LDIwLjgzOS0zNi4wODQsNDUuNzA5IGMwLDEzLjk2MywxMS40NTYsMjUuMzIzLDI1LjUzNywyNS4zMjNDMTU4LjgyNSwxMDMuOTcxLDE2My44NDUsMTAyLjM4MiwxNjguMDQzLDk5LjUyNXogTTE0NC4wNjMsNzguNjQ4IGMwLTExLjIzNSwxNS4wODQtMjMuNDg3LDIzLjk3OS0yOS4zNGM4LjkwMSw1Ljg1NywyMy45OCwxOC4xMDYsMjMuOTgsMjkuMzRjMCw1LjE0MS00LjI3OCw5LjMyMy05LjUzNyw5LjMyMyBjLTMuMTUsMC02LjA5Ny0xLjUyNy03Ljg4My00LjA4NGMtMS40OTYtMi4xNDQtMy45NDUtMy40MjEtNi41Ni0zLjQyMXMtNS4wNjMsMS4yNzctNi41NiwzLjQyMSBjLTEuNzg1LDIuNTU4LTQuNzMyLDQuMDg0LTcuODgzLDQuMDg0QzE0OC4zNDEsODcuOTcxLDE0NC4wNjMsODMuNzg5LDE0NC4wNjMsNzguNjQ4eiI+PC9wYXRoPiA8cGF0aCBzdHlsZT0iZmlsbDojMkQyQjI5OyIgZD0iTTE3Ni4xNjcsMTA0aC0xNi4yNDhjLTQuNDE4LDAtOCwzLjU4Mi04LDhzMy41ODIsOCw4LDhoMTYuMjQ4YzQuNDE4LDAsOC0zLjU4Miw4LTggUzE4MC41ODUsMTA0LDE3Ni4xNjcsMTA0eiI+PC9wYXRoPiA8cGF0aCBzdHlsZT0iZmlsbDojMkQyQjI5OyIgZD0iTTM1OC40NjMsNDA3Ljk1NWMtNS4yMjUsMC0xMC4yNDUsMS41ODktMTQuNDQzLDQuNDQ2Yy00LjE5OC0yLjg1Ny05LjIxOC00LjQ0Ni0xNC40NDItNC40NDYgYy0xNC4wODEsMC0yNS41MzcsMTEuMzYtMjUuNTM3LDI1LjMyM2MwLDI0Ljg3LDMyLjM5LDQzLjY0OSwzNi4wODMsNDUuNzA5YzEuMjExLDAuNjc1LDIuNTUzLDEuMDEzLDMuODk2LDEuMDEzIGMxLjM0MiwwLDIuNjg2LTAuMzM4LDMuODk2LTEuMDEzYzMuNjkzLTIuMDYsMzYuMDg0LTIwLjgzOSwzNi4wODQtNDUuNzA5QzM4NCw0MTkuMzE1LDM3Mi41NDQsNDA3Ljk1NSwzNTguNDYzLDQwNy45NTV6IE0zNDQuMDEyLDQ2Mi42MjRjLTguODk4LTUuODMzLTIzLjk3MS0xOC4wNTMtMjMuOTcxLTI5LjM0NmMwLTUuMTQxLDQuMjc4LTkuMzIzLDkuNTM3LTkuMzIzYzMuMTUsMCw2LjA5NywxLjUyNyw3Ljg4Miw0LjA4NSBjMS40OTcsMi4xNDQsMy45NDYsMy40MjEsNi41NiwzLjQyMXM1LjA2My0xLjI3Nyw2LjU2LTMuNDIxYzEuNzg1LTIuNTU4LDQuNzMyLTQuMDg1LDcuODgzLTQuMDg1YzUuMjU5LDAsOS41MzcsNC4xODMsOS41MzcsOS4zMjMgQzM2OCw0NDQuNTE4LDM1Mi45MDYsNDU2Ljc3MywzNDQuMDEyLDQ2Mi42MjR6Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMzUyLjE0NCwzOTEuOTI3aC0xNi4yNDhjLTQuNDE4LDAtOCwzLjU4Mi04LDhzMy41ODIsOCw4LDhoMTYuMjQ4YzQuNDE4LDAsOC0zLjU4Miw4LTggUzM1Ni41NjMsMzkxLjkyNywzNTIuMTQ0LDM5MS45Mjd6Ij48L3BhdGg+IDwvZz4gPC9nPjwvc3ZnPg==");
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: 95% 95%;
+        }
+
+        .stack__card:nth-child(5) {
+            top: calc(var(--stack-spacing) * -3);
+        }
+
+        .stack__card:nth-child(5)::before {
+            animation-delay: calc(var(--stack-dur) * (-1 + var(--stack-delay) * 4));
+            background-color: transparent;
+            background-image: url("data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjIwMHB4IiB3aWR0aD0iMjAwcHgiIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB4bWw6c3BhY2U9InByZXNlcnZlIiBmaWxsPSIjMDAwMDAwIj48ZyBpZD0iU1ZHUmVwb19iZ0NhcnJpZXIiIHN0cm9rZS13aWR0aD0iMCI+PC9nPjxnIGlkPSJTVkdSZXBvX3RyYWNlckNhcnJpZXIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PC9nPjxnIGlkPSJTVkdSZXBvX2ljb25DYXJyaWVyIj4gPHBhdGggc3R5bGU9ImZpbGw6I0VGRjJGQTsiIGQ9Ik0zODEuODYzLDUwM0gxMzEuMTM3QzExNi43MDIsNTAzLDEwNSw0OTEuMjk5LDEwNSw0NzYuODYzVjM1LjEzN0MxMDUsMjAuNzAyLDExNi43MDIsOSwxMzEuMTM3LDkgaDI1MC43MjdDMzk2LjI5OCw5LDQwOCwyMC43MDIsNDA4LDM1LjEzN3Y0NDEuNzI3QzQwOCw0OTEuMjk5LDM5Ni4yOTgsNTAzLDM4MS44NjMsNTAzeiI+PC9wYXRoPiA8Zz4gPHBhdGggc3R5bGU9ImZpbGw6I0ZGNjQ2NDsiIGQ9Ik0xODYsMjM3LjY0NWMwLTIxLjMyNCwxNy4xODctMzguNjEsMzguMzg3LTM4LjYxYzEwLjUwOCwwLDIwLjAyMSw0LjI1MiwyNi45NSwxMS4xMzUgYzIuNTY5LDIuNTUyLDYuNzU2LDIuNTUyLDkuMzI1LDBjNi45MjktNi44ODMsMTYuNDQyLTExLjEzNSwyNi45NS0xMS4xMzVjMjEuMjAxLDAsMzguMzg3LDE3LjI4NiwzOC4zODcsMzguNjFsMCwwIGMwLDM5Ljg3Ny01MS4zNDksNzYuMTUzLTY2LjA4OCw4NS43NDRjLTIuMzgzLDEuNTUxLTUuNDQxLDEuNTUxLTcuODI0LDBDMjM3LjM0OSwzMTMuNzk3LDE4NiwyNzcuNTIxLDE4NiwyMzcuNjQ1Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiNGRjY0NjQ7IiBkPSJNMTM2LDU4LjI3MWMwLTEwLjk2Niw4LjgzOS0xOS44NTcsMTkuNzQyLTE5Ljg1N2M1LjQwNCwwLDEwLjI5NywyLjE4NywxMy44Niw1LjcyNyBjMS4zMjEsMS4zMTMsMy40NzUsMS4zMTMsNC43OTYsMGMzLjU2My0zLjU0LDguNDU2LTUuNzI3LDEzLjg2LTUuNzI3YzEwLjkwMywwLDE5Ljc0Miw4Ljg5MSwxOS43NDIsMTkuODU3bDAsMCBjMCwyMC41MDgtMjYuNDA4LDM5LjE2NC0zMy45ODgsNDQuMDk3Yy0xLjIyNiwwLjc5OC0yLjc5OCwwLjc5OC00LjAyMywwQzE2Mi40MDgsOTcuNDM1LDEzNiw3OC43NzgsMTM2LDU4LjI3MSI+PC9wYXRoPiA8cGF0aCBzdHlsZT0iZmlsbDojRkY2NDY0OyIgZD0iTTM3Niw0NTIuMTQ0QzM3Niw0NjMuMTEsMzY3LjE2MSw0NzIsMzU2LjI1OCw0NzJjLTUuNDA0LDAtMTAuMjk3LTIuMTg3LTEzLjg2LTUuNzI3IGMtMS4zMjEtMS4zMTMtMy40NzUtMS4zMTMtNC43OTYsMGMtMy41NjMsMy41NC04LjQ1Niw1LjcyNy0xMy44Niw1LjcyN0MzMTIuODM5LDQ3MiwzMDQsNDYzLjExLDMwNCw0NTIuMTQ0bDAsMCBjMC0yMC41MDgsMjYuNDA4LTM5LjE2NCwzMy45ODgtNDQuMDk3YzEuMjI2LTAuNzk3LDIuNzk4LTAuNzk3LDQuMDIzLDBDMzQ5LjU5Miw0MTIuOTc5LDM3Niw0MzEuNjM1LDM3Niw0NTIuMTQ0Ij48L3BhdGg+IDwvZz4gPGc+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMTc2LjA0OCwyMzkuNTQ0YzAsNTEuNzg4LDcyLjkwNyw5My42NjEsNzYuMDExLDk1LjQxOGMxLjIyMywwLjY5MiwyLjU4MiwxLjAzOCwzLjk0MSwxLjAzOCBjMS4zNTksMCwyLjcxOS0wLjM0NiwzLjk0MS0xLjAzOGMzLjEwNC0xLjc1Nyw3Ni4wMTEtNDMuNjMsNzYuMDExLTk1LjQxOGMwLTI2LjIzMS0yMS4yOS00Ny41NzItNDcuNDU4LTQ3LjU3MiBjLTEyLjE5MSwwLTIzLjc3Nyw0LjcwNS0zMi40OTUsMTIuOTIxYy04LjcxNy04LjIxNi0yMC4zMDQtMTIuOTIxLTMyLjQ5NS0xMi45MjFDMTk3LjMzNywxOTEuOTcyLDE3Ni4wNDgsMjEzLjMxMywxNzYuMDQ4LDIzOS41NDQgeiBNMjIzLjUwNSwyMDcuOTcyYzEwLjMzMSwwLDIwLjAxNCw1LjExMywyNS45MDIsMTMuNjc5YzEuNDkyLDIuMTcxLDMuOTU4LDMuNDY4LDYuNTkyLDMuNDY4YzIuNjM0LDAsNS4xLTEuMjk3LDYuNTkyLTMuNDY4IGM1Ljg4OS04LjU2NSwxNS41NzItMTMuNjc5LDI1LjkwMi0xMy42NzljMTcuMzQ2LDAsMzEuNDU4LDE0LjE2MywzMS40NTgsMzEuNTcyYzAsMzYuNDM1LTQ5LjQ2Niw3MC4wNDktNjMuOTU2LDc5LjExMSBjLTE0LjQ5OS05LjA1MS02My45NDgtNDIuNjAzLTYzLjk0OC03OS4xMTFDMTkyLjA0OCwyMjIuMTM1LDIwNi4xNiwyMDcuOTcyLDIyMy41MDUsMjA3Ljk3MnoiPjwvcGF0aD4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0xNjguMDQyLDExMC45OTFjMS4yMjMsMC42OTIsMi41ODIsMS4wMzgsMy45NDEsMS4wMzhzMi43MTktMC4zNDYsMy45NDEtMS4wMzggYzQuMDk5LTIuMzIxLDQwLjA0My0yMy40NzIsNDAuMDQzLTUxLjJjMC0xNS4zMjQtMTIuNDQxLTI3Ljc5MS0yNy43MzMtMjcuNzkxYy01LjkxMywwLTExLjU4MiwxLjg5My0xNi4yNTEsNS4yNzkgQzE2Ny4zMTUsMzMuODkzLDE2MS42NDYsMzIsMTU1LjczMywzMkMxNDAuNDQxLDMyLDEyOCw0NC40NjcsMTI4LDU5Ljc5MUMxMjgsODcuNTE5LDE2My45NDQsMTA4LjY3LDE2OC4wNDIsMTEwLjk5MXogTTE1NS43MzMsNDggYzMuODQ5LDAsNy40NTksMS45MDksOS42NTgsNS4xMDdjMS40OTMsMi4xNzEsMy45NTgsMy40NjgsNi41OTIsMy40NjhzNS4xLTEuMjk3LDYuNTkyLTMuNDY4YzIuMTk5LTMuMTk4LDUuODEtNS4xMDcsOS42NTktNS4xMDcgYzYuNDcsMCwxMS43MzMsNS4yOSwxMS43MzMsMTEuNzkxYzAsMTMuNzA3LTE3LjYxNywyOC4wNzgtMjcuOTc4LDM0Ljg0OUMxNjEuODgyLDg3Ljk5MSwxNDQsNzMuNDIyLDE0NCw1OS43OTEgQzE0NCw1My4yOSwxNDkuMjY0LDQ4LDE1NS43MzMsNDh6Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMzQzLjkyMyw0MDEuMDY2Yy0yLjQ0NC0xLjM4My01LjQzNC0xLjM4My03Ljg3OCwwQzMzMS45NDYsNDAzLjM4NCwyOTYsNDI0LjUxNywyOTYsNDUyLjIyNyBDMjk2LDQ2Ny41NDEsMzA4LjQ0MSw0ODAsMzIzLjczMyw0ODBjNS45MTMsMCwxMS41ODItMS44OTIsMTYuMjUtNS4yNzZjNC42NjksMy4zODQsMTAuMzM4LDUuMjc2LDE2LjI1MSw1LjI3NiBjMTUuMjkyLDAsMjcuNzMzLTEyLjQ1OSwyNy43MzMtMjcuNzczQzM4My45NjgsNDI0LjUxNywzNDguMDIxLDQwMy4zODQsMzQzLjkyMyw0MDEuMDY2eiBNMzU2LjIzNSw0NjQgYy0zLjg1MSwwLTcuNDYyLTEuOTA3LTkuNjYxLTUuMTAzYy0xLjQ5My0yLjE2OS0zLjk1Ny0zLjQ2NS02LjU5LTMuNDY1cy01LjA5OCwxLjI5Ni02LjU5LDMuNDY1IGMtMi4xOTksMy4xOTUtNS44MSw1LjEwMy05LjY2LDUuMTAzYy02LjQ3LDAtMTEuNzMzLTUuMjgxLTExLjczMy0xMS43NzNjMC0xMy42OTQsMTcuNjI1LTI4LjA1NCwyNy45ODMtMzQuODE2IGMxMC4zNjUsNi43NjYsMjcuOTg1LDIxLjEyNCwyNy45ODUsMzQuODE2QzM2Ny45NjgsNDU4LjcxOSwzNjIuNzA1LDQ2NCwzNTYuMjM1LDQ2NHoiPjwvcGF0aD4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0zNzYsMEgxMzZjLTIyLjA1NiwwLTQwLDE3Ljk0NC00MCw0MHY0MzJjMCwyMi4wNTYsMTcuOTQ0LDQwLDQwLDQwaDI0MGMyMi4wNTYsMCw0MC0xNy45NDQsNDAtNDAgVjQwQzQxNiwxNy45NDQsMzk4LjA1NiwwLDM3NiwweiBNNDAwLDQ3MmMwLDEzLjIzMy0xMC43NjYsMjQtMjQsMjRIMTM2Yy0xMy4yMzQsMC0yNC0xMC43NjctMjQtMjRWNDBjMC0xMy4yMzMsMTAuNzY2LTI0LDI0LTI0IGgyNDBjMTMuMjM0LDAsMjQsMTAuNzY3LDI0LDI0VjQ3MnoiPjwvcGF0aD4gPHBhdGggc3R5bGU9ImZpbGw6IzJEMkIyOTsiIGQ9Ik0yNzIsNDU2SDE1MlYxMjBjMC00LjQxOC0zLjU4Mi04LTgtOHMtOCwzLjU4Mi04LDh2MzQ0YzAsNC40MTgsMy41ODIsOCw4LDhoMTI4IGM0LjQxOCwwLDgtMy41ODIsOC04UzI3Ni40MTgsNDU2LDI3Miw0NTZ6Ij48L3BhdGg+IDxwYXRoIHN0eWxlPSJmaWxsOiMyRDJCMjk7IiBkPSJNMjQwLDU2aDEyMHYzMzZjMCw0LjQxOCwzLjU4Miw4LDgsOHM4LTMuNTgyLDgtOFY0OGMwLTQuNDE4LTMuNTgyLTgtOC04SDI0MGMtNC40MTgsMC04LDMuNTgyLTgsOCBTMjM1LjU4Miw1NiwyNDAsNTZ6Ij48L3BhdGg+IDwvZz4gPC9nPjwvc3ZnPg==");
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: 95% 95%;
+        }
+
+        @keyframes card {
+            0%,
+            100% {
+                animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+                transform: translateZ(0);
+            }
+            11% {
+                animation-timing-function: cubic-bezier(0.32, 0, 0.67, 0);
+                opacity: 1;
+                transform: translateZ(0.125em);
+            }
+            34% {
+                animation-timing-function: steps(1);
+                opacity: 0;
+                transform: translateZ(-12em);
+            }
+            48% {
+                animation-timing-function: linear;
+                opacity: 0;
+                transform: translateZ(12em);
+            }
+            57% {
+                animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+                opacity: 1;
+                transform: translateZ(0);
+            }
+            61% {
+                animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+                transform: translateZ(-1.8em);
+            }
+            74% {
+                animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+                transform: translateZ(0.6em);
+            }
+            87% {
+                animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+                transform: translateZ(-0.2em);
+            }
         }
 
         .loading-text {
-            color: #9ca3af;
-            font-size: 14px;
+            color: var(--chalk);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
 
         .result {
             display: none;
             text-align: center;
             padding: 16px;
-            background: rgba(124, 58, 237, 0.1);
-            border: 1px solid rgba(124, 58, 237, 0.3);
-            border-radius: 12px;
-            margin-bottom: 16px;
+            background: var(--chalk);
+            border: var(--brutal) solid var(--ink);
+            border-radius: var(--r-card);
+            box-shadow: var(--press-x) var(--press-y) 0 var(--ink);
+            margin-bottom: 20px;
         }
 
         .result.success {
-            background: rgba(34, 197, 94, 0.1);
-            border-color: rgba(34, 197, 94, 0.3);
+            background: #5ce68a;
             display: block;
         }
 
         .result.error {
-            background: rgba(239, 68, 68, 0.1);
-            border-color: rgba(239, 68, 68, 0.3);
+            background: #ff8080;
             display: block;
         }
 
         .result-text {
-            font-size: 14px;
-            margin-bottom: 8px;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            color: var(--ink);
+            margin-bottom: 6px;
         }
 
         .result-detail {
             font-size: 12px;
-            color: #9ca3af;
+            font-weight: 500;
+            color: #33447a;
         }
 
-        .initial-state {
-            display: block;
+        /* Holds the swappable states so the header can be hidden while
+           processing without touching the per-state display rules. */
+        .panel {
+            position: relative;
+            z-index: 1;
         }
 
-        .processing-state {
+        /* While the loader is showing, the title block is hidden so the
+           animation is the only thing on screen. */
+        body.is-processing .header {
             display: none;
         }
 
-        .complete-state {
-            display: none;
-        }
+        .initial-state { display: block; }
+        .processing-state { display: none; }
+        .complete-state { display: none; }
     </style>
 </head>
 <body>
+    <!-- Flat ground behind the UI, purely decorative -->
+    <div class="ground" aria-hidden="true">
+        <span class="ground-bars"></span>
+        <span class="ground-ticks"></span>
+        <span class="ground-ticks ground-ticks--right"></span>
+    </div>
+
     <div class="header">
         <div class="title">Tab Wrapper</div>
-        <div class="subtitle">AI-powered tab organization</div>
     </div>
 
     <div class="initial-state" id="initialState">
-        <div class="tab-count">
-            <svg class="tab-count-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <line x1="3" y1="9" x2="21" y2="9"/>
-                <line x1="9" y1="21" x2="9" y2="9"/>
-            </svg>
-            <span id="tabCount">Loading tabs...</span>
-        </div>
-
-        <!-- Mode Selection: Auto vs Manual -->
-        <div style="margin-bottom: 20px;">
-            <div style="display: flex; justify-content: center; gap: 8px; margin-bottom: 16px;">
-                <button type="button" id="autoModeBtn" class="mode-btn active" style="flex: 1; padding: 10px 12px; border: 2px solid #7c3aed; background: rgba(124, 58, 237, 0.15); color: #7c3aed; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
-                    🤖 Auto
-                </button>
-                <button type="button" id="manualModeBtn" class="mode-btn" style="flex: 1; padding: 10px 12px; border: 2px solid #3f3f46; background: transparent; color: #9ca3af; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
-                    🎚️ Manual
-                </button>
+        <div class="status-row">
+            <div class="tab-count">
+                <span id="tabCount">Loading tabs...</span>
             </div>
-            <div id="modeDescription" style="text-align: center; font-size: 11px; color: #7c3aed; margin-bottom: 12px;">
-                AI decides optimal grouping
+
+            <div class="speed-pill" id="speedPill" title="Live download speed to the Tab Wrapper API, refreshed every 500ms">
+                <span class="speed-value" id="speedValue">Checking speed...</span>
             </div>
         </div>
 
-        <!-- Manual Slider (hidden by default in Auto mode) -->
-        <div id="manualSlider" style="margin-bottom: 24px; padding: 0 4px; display: none;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px; color: #9ca3af;">
-                <span>Tabs per group (Target)</span>
-                <span id="sliderValue" style="color: #7c3aed; font-weight: 600;">5</span>
-            </div>
-            <input type="range" id="tabsPerGroup" min="2" max="15" value="5" 
-                   style="width: 100%; accent-color: #7c3aed; cursor: pointer; background: #18181b; border-radius: 8px; height: 6px; appearance: none;">
-            <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: #52525b;">
-                <span>Detailed</span>
-                <span>Broad</span>
-            </div>
+        <div>
+            <button class="main-button" id="organizeButton">
+                <span>Organize tabs</span>
+            </button>
         </div>
-        
-        <button class="main-button" id="organizeButton">
-            <span>✨</span>
-            <span>Organize My Tabs</span>
-        </button>
     </div>
 
     <div class="processing-state" id="processingState">
         <div class="loading">
-            <div class="spinner"></div>
-            <div class="loading-text">Organizing your tabs...</div>
+            <div class="loader" aria-hidden="true">
+                <div class="stack">
+                    <div class="stack__card"></div>
+                    <div class="stack__card"></div>
+                    <div class="stack__card"></div>
+                    <div class="stack__card"></div>
+                    <div class="stack__card"></div>
+                </div>
+            </div>
+            <div class="loading-text">Organizing...</div>
         </div>
     </div>
 
@@ -232,10 +649,9 @@
             <div class="result-text" id="resultText"></div>
             <div class="result-detail" id="resultDetail"></div>
         </div>
-        
+
         <button class="main-button" id="organizeAgainButton">
-            <span>🔄</span>
-            <span>Organize Again</span>
+            <span>Run again</span>
         </button>
     </div>
 
@@ -244,10 +660,9 @@
             <div class="result-text" id="errorText">Error occurred</div>
             <div class="result-detail" id="errorDetail">Something went wrong</div>
         </div>
-        
+
         <button class="main-button" id="retryButton">
-            <span>🔄</span>
-            <span>Try Again</span>
+            <span>Try again</span>
         </button>
     </div>
 
