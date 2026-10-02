@@ -2,7 +2,7 @@
 // Handles tab collection and calls the Vercel backend for organization
 // Cross-browser compatible: Chrome, Edge, Firefox, Brave
 
-const BACKEND_URL = 'https://tab-wrapper-pboeynppt-khks-projects-0ec29871.vercel.app/api/organize';
+const BACKEND_URL = 'https://tab-wrapper-khks-projects-0ec29871.vercel.app/api/organize';
 
 // Cross-browser API wrapper
 const api = typeof browser !== 'undefined' ? browser : chrome;

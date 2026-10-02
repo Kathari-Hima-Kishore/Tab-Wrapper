@@ -22,7 +22,8 @@
     "windows"
   ],
   "host_permissions": [
-    "https://tab-wrapper-pboeynppt-khks-projects-0ec29871.vercel.app/*"
+    "https://tab-wrapper-khks-projects-0ec29871.vercel.app/*",
+    "https://speed.cloudflare.com/*"
   ],
   "background": {
     "service_worker": "background.js"
