@@ -97,10 +97,13 @@
             }
         }
 
-        /* ================= Brutalist ground ================= */
-        /* A flat field plus a faint dot grid. Nothing here blurs, glows or
-           moves: texture has to sit behind the type without competing with it,
-           and motion was reading as noise in a panel this small. */
+        /* ================= Ground ================= */
+        /* Blue-to-black gradient with one soft light source that breathes.
+           Earlier versions used hard geometry - blocks, bars, a sweeping rule -
+           which crawled across the panel and pulled the eye off the text.
+           This has no edges and no sweep: a single radial glow drifts very
+           slowly, so the surface reads as lit rather than painted. Alive, but
+           not competing with the UI. */
 
         .ground {
             position: absolute;
@@ -109,136 +112,42 @@
             pointer-events: none;
             overflow: hidden;
             background:
-                radial-gradient(circle, rgba(247, 247, 242, 0.05) 1px, transparent 1.5px) 0 0 / 13px 13px,
-                linear-gradient(180deg, #1c5098 0%, #143f7c 52%, #0d2a5e 100%);
+                radial-gradient(130% 100% at 28% 6%,
+                    rgba(59, 130, 246, 0.40) 0%,
+                    rgba(30, 80, 190, 0.15) 40%,
+                    transparent 72%),
+                linear-gradient(168deg,
+                    #1a4fa5 0%,
+                    #0d2f74 34%,
+                    #061741 66%,
+                    #03060f 100%);
         }
 
-        /* ---- Brutalist motion ----
-           Hard-edged geometry, no blur: it should read as printed matter
-           moving, not as light effects. Travel is continuous - an earlier
-           steps() version advanced in visible jumps and juddered badly on a
-           panel this small.
-
-           Structure is three parallax bands rather than one flat texture:
-           coarse blocks travel fastest, mid ticks cross them, fine dots sit
-           almost still. Depth comes from speed differences, not from opacity
-           tricks. Every layer is transform-only and promoted with will-change,
-           so nothing here can trigger layout or paint while it animates. */
-
-        /* --- Band 1: vertical tick rules, two lanes, counter-direction --- */
-        .ground-ticks {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            left: 0;
-            width: 52px;
-            background: repeating-linear-gradient(
-                180deg,
-                rgba(247, 247, 242, 0.085) 0 12px,
-                transparent 12px 26px
-            );
-            will-change: transform;
-            animation: tick-rise 8s linear infinite;
-        }
-
-        @keyframes tick-rise {
-            from { transform: translate3d(0, 26px, 0); }
-            to   { transform: translate3d(0, 0, 0); }
-        }
-
-        /* A second tick lane on the right edge, running the other way */
-        .ground-ticks--right {
-            left: auto;
-            right: 0;
-            width: 30px;
-            background: repeating-linear-gradient(
-                180deg,
-                rgba(125, 211, 252, 0.10) 0 8px,
-                transparent 8px 22px
-            );
-            animation: tick-fall 11s linear infinite;
-        }
-
-        @keyframes tick-fall {
-            from { transform: translate3d(0, 0, 0); }
-            to   { transform: translate3d(0, 22px, 0); }
-        }
-
-        /* --- Band 2: diagonal hatch, slowest, base texture --- */
-        .ground::before {
-            content: '';
-            position: absolute;
-            inset: -30%;
-            background: repeating-linear-gradient(
-                45deg,
-                rgba(247, 247, 242, 0.04) 0 2px,
-                transparent 2px 13px
-            );
-            will-change: transform;
-            animation: hatch-drift 17s linear infinite;
-        }
-
-        @keyframes hatch-drift {
-            from { transform: translate3d(0, 0, 0); }
-            to   { transform: translate3d(52px, 52px, 0); }
-        }
-
-        /* --- Band 3: hard rules drifting, no sweep --- */
+        /* The light source. Very slow alternate drift and a gentle scale, so
+           the focal point shifts without ever travelling far enough to read as
+           motion. Opacity stays low: it should feel like luminance, not a
+           highlight. */
         .ground::after {
             content: '';
             position: absolute;
-            top: 0;
-            bottom: 0;
-            left: 0;
-            width: 26%;
-            background: linear-gradient(
-                90deg,
-                transparent 0%,
-                rgba(125, 211, 252, 0.05) 38%,
-                rgba(125, 211, 252, 0.11) 50%,
-                rgba(125, 211, 252, 0.05) 62%,
-                transparent 100%
-            );
-            will-change: transform;
-            animation: rule-drift 19s linear infinite;
+            inset: -60%;
+            background: radial-gradient(closest-side,
+                rgba(90, 160, 255, 0.20),
+                rgba(40, 90, 200, 0.07) 46%,
+                transparent 72%);
+            will-change: transform, opacity;
+            animation: ground-breathe 30s ease-in-out infinite alternate;
         }
 
-        /* Drifts steadily and wraps off-panel, rather than sweeping across and
-               back. A full sweep reads as a carousel or a loading bar; a slow
-               one-way drift reads as texture. */
-        @keyframes rule-drift {
-            from { transform: translate3d(-30%, 0, 0); }
-            to   { transform: translate3d(430%, 0, 0); }
-        }
-
-        /* --- Cross bars: horizontal, on a third period, sells the parallax --- */
-        .ground-bars {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 22%;
-            background: repeating-linear-gradient(
-                90deg,
-                rgba(247, 247, 242, 0.07) 0 2px,
-                transparent 2px 34px
-            );
-            will-change: transform;
-            animation: bar-slide 14s linear infinite;
-        }
-
-        @keyframes bar-slide {
-            from { transform: translate3d(0, 0, 0); }
-            to   { transform: translate3d(-34px, 0, 0); }
+        @keyframes ground-breathe {
+            from { transform: translate3d(-14%, -10%, 0) scale(1);    opacity: 0.7; }
+            to   { transform: translate3d(16%, 12%, 0)   scale(1.18); opacity: 1;   }
         }
 
         /* Honour the OS reduced-motion setting: freeze every animated layer */
         @media (prefers-reduced-motion: reduce) {
-            .stack__card::before,
-            .ground::before,
             .ground::after,
-            .ground-ticks,
-            .ground-bars {
+            .stack__card::before {
                 animation: none !important;
             }
         }
@@ -601,11 +510,7 @@
 </head>
 <body>
     <!-- Flat ground behind the UI, purely decorative -->
-    <div class="ground" aria-hidden="true">
-        <span class="ground-bars"></span>
-        <span class="ground-ticks"></span>
-        <span class="ground-ticks ground-ticks--right"></span>
-    </div>
+    <div class="ground" aria-hidden="true"></div>
 
     <div class="header">
         <div class="title">Tab Wrapper</div>
@@ -617,7 +522,7 @@
                 <span id="tabCount">Loading tabs...</span>
             </div>
 
-            <div class="speed-pill" id="speedPill" title="Live download speed to the Tab Wrapper API, refreshed every 500ms">
+            <div class="speed-pill" id="speedPill" title="Live download speed, measured in the browser every 500ms">
                 <span class="speed-value" id="speedValue">Checking speed...</span>
             </div>
         </div>

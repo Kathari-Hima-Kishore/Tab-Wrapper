@@ -34,33 +34,6 @@ def friendly_error(status_code, detail):
 def health():
     return jsonify({"status": "alive", "message": "Tab Wrapper Backend is running"}), 200
 
-@app.route('/api/speed', methods=['GET'])
-def speed_payload():
-    """Serve a known-size incompressible payload for a throughput measurement.
-
-    The client times how long this takes to arrive and converts the result to
-    Mbps. Random bytes are used because they do not compress: a compressible
-    payload would arrive far smaller than declared and the maths would be wrong.
-    The cache is disabled so every request is a real transfer, not a replay.
-    """
-    try:
-        size = int(request.args.get("bytes", 1048576))
-    except (TypeError, ValueError):
-        size = 1048576
-
-    # Cap the response so this endpoint can never be used to generate a huge
-    # download for free.
-    size = max(1024, min(size, 4 * 1024 * 1024))
-
-    return app.response_class(
-        os.urandom(size),
-        mimetype="application/octet-stream",
-        headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-            "Content-Length": str(size),
-        },
-    )
-
 @app.route('/api/organize', methods=['POST', 'GET'])
 def organize_tabs():
     if request.method == 'GET':

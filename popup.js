@@ -39,18 +39,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Declared BEFORE initSpeed() is called below. const/let live in the
     // temporal dead zone until execution reaches them, so calling a function
     // that reads them earlier throws "Cannot access before initialization".
-    const SPEED_INTERVAL_MS = 500;
-    const SPEED_PROBE_URL = 'https://tab-wrapper-pboeynppt-khks-projects-0ec29871.vercel.app';
-    // Payload size per sample. 1 MB is big enough that the transfer dominates
-    // the round trip at gigabit speeds - without it the number would really be
-    // measuring latency and would cap out around a few hundred Mbps.
-    const SPEED_PROBE_BYTES = 1048576;
-    // Cap how long a single sample may take so a stalled request cannot block
-    // the next tick or pile up behind itself.
-    const SPEED_TIMEOUT_MS = 1500;
+    //
+    // Measurement follows the LibreSpeed approach: several downloads running
+    // in parallel over a sustained window. A single small transfer reports
+    // roughly twice the real speed on a typical connection, because it reads
+    // the peak burst rate before congestion control has settled rather than
+    // the sustained rate a real download would experience.
+    const SPEED_PROBE_URL = 'https://speed.cloudflare.com/__down';
+    // Parallel streams per sample. More streams fill the pipe more completely,
+    // which is what makes the result comparable to a multi-connection test.
+    const SPEED_STREAMS = 6;
+    // Payload per stream. Streams run concurrently, so this is the total
+    // sample size divided across them, not a per-stream round trip.
+    const SPEED_STREAM_BYTES = 1000000;
+    // Seconds per sample. A longer window averages out per-transfer noise, at
+    // the cost of the readout updating less often.
+    const SPEED_SAMPLE_MS = 2000;
+    // Samples discarded at the start. The first transfers pay for TCP and TLS
+    // setup and are always slow, which would otherwise drag the average down.
+    const SPEED_WARMUP_SAMPLES = 1;
+    // Weight per sample in the running average, so the readout settles rather
+    // than jumping between samples.
+    const SPEED_SMOOTHING = 0.4;
+    // Backstop so a stalled stream cannot hang the loop indefinitely.
+    const SPEED_TIMEOUT_MS = 8000;
 
     let speedTimer = null;
-    let speedAbort = null;
+    // AbortControllers for the streams of the sample currently in flight.
+    let speedAborts = [];
+    // Running average across samples, so one slow transfer is not alarming.
+    let speedAverage = null;
+    // Samples completed since the last time the average was reset.
+    let speedSampleCount = 0;
 
     // Load initial state
     await loadTabCount();
@@ -89,12 +109,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        // Navigating away must stop the timer, or a popup closed mid-interval
-        // keeps the probe alive for the rest of the session.
+        // Navigating away must stop the timer, or a popup closed mid-sample
+        // keeps the streams alive for the rest of the session.
         window.addEventListener('pagehide', stopSpeed);
 
-        tickSpeed();
-        speedTimer = setInterval(tickSpeed, SPEED_INTERVAL_MS);
+        // First sample runs straight away so there is a number on screen, then
+        // the loop keeps refreshing it.
+        runSpeedSample();
+        speedTimer = setInterval(runSpeedSample, SPEED_SAMPLE_MS);
     }
 
     function stopSpeed() {
@@ -102,10 +124,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             clearInterval(speedTimer);
             speedTimer = null;
         }
-        if (speedAbort) {
-            speedAbort.abort();
-            speedAbort = null;
-        }
+        speedAborts.forEach((c) => c.abort());
+        speedAborts = [];
     }
 
     function renderOffline() {
@@ -113,66 +133,87 @@ document.addEventListener('DOMContentLoaded', async () => {
         elements.speedValue.textContent = 'Offline';
     }
 
-    async function tickSpeed() {
-        // Skip rather than overlap: a slow transfer must not queue up
-        // concurrent requests behind it.
-        if (speedAbort) return;
+    async function runSpeedSample() {
+        // Skip rather than overlap: a slow sample must not queue a second set
+        // of streams behind the first.
+        if (speedAborts.length) return;
 
-        const controller = new AbortController();
-        speedAbort = controller;
-        const timeout = setTimeout(() => controller.abort(), SPEED_TIMEOUT_MS);
+        speedAborts = new Array(SPEED_STREAMS)
+            .fill(0)
+            .map(() => new AbortController());
+        const controllers = [...speedAborts];
+        const timeout = setTimeout(() => controllers.forEach((c) => c.abort()), SPEED_TIMEOUT_MS);
 
-        const url = `${SPEED_PROBE_URL}/api/speed?bytes=${SPEED_PROBE_BYTES}&t=${Date.now()}`;
         const started = performance.now();
         let response = null;
         try {
-            response = await fetch(url, {
-                method: 'GET',
-                cache: 'no-store',
-                signal: controller.signal
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            // All streams launch together, then every body is awaited before
+            // the clock stops. Timing a single stream would understate the
+            // link, and stopping early would time only the headers.
+            const results = await Promise.allSettled(
+                controllers.map((controller) => fetch(
+                    `${SPEED_PROBE_URL}?bytes=${SPEED_STREAM_BYTES}&t=${Date.now()}`,
+                    { method: 'GET', cache: 'no-store', signal: controller.signal }
+                ).then(async (r) => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    const b = await r.arrayBuffer();
+                    return b.byteLength;
+                }))
+            );
 
-            // The body must be fully read before stopping the clock, otherwise
-            // this would time the headers rather than the transfer.
-            const buffer = await response.arrayBuffer();
+            // A sample needs most of its streams to be usable, otherwise the
+            // aggregate is not measuring the link.
+            const succeeded = results.filter((r) => r.status === 'fulfilled');
+            if (succeeded.length < SPEED_STREAMS / 2) {
+                throw new Error(results.find((r) => r.status === 'rejected')?.reason
+                    || new Error('too few streams completed'));
+            }
+
             const elapsed = performance.now() - started;
-            const bytes = buffer.byteLength;
-
-            // Mbps = bytes * 8 / seconds / 1e6. Guard against a zero-length
-            // body or an impossibly fast clock reading producing Infinity.
+            const bytes = succeeded.reduce((sum, r) => sum + r.value, 0);
+            // Mbps = bytes * 8 / seconds / 1e6.
             const mbps = elapsed > 0 ? (bytes * 8) / (elapsed * 1000) : 0;
 
-            delete elements.speedPill.dataset.state;
-            elements.speedValue.textContent = `${mbps.toFixed(2)} mbps`;
+            speedSampleCount++;
+            // Discard warm-up samples, which carry connection setup cost.
+            if (speedSampleCount > SPEED_WARMUP_SAMPLES) {
+                speedAverage = speedAverage === null
+                    ? mbps
+                    : speedAverage + SPEED_SMOOTHING * (mbps - speedAverage);
+
+                delete elements.speedPill.dataset.state;
+                elements.speedValue.textContent = `${speedAverage.toFixed(2)} mbps`;
+            }
         } catch (error) {
-            // An aborted probe means the request stalled or we navigated away.
+            // An aborted probe means the stream stalled or we navigated away.
             // Only surface a real failure while the popup is still open.
             if (error.name !== 'AbortError' && navigator.onLine !== false) {
+                // Drop the average: a failed sample should not bias the next
+                // reading towards a value we no longer have evidence for.
+                speedAverage = null;
+                speedSampleCount = 0;
                 elements.speedPill.dataset.state = 'error';
                 elements.speedValue.textContent = describeSpeedFailure(response, error);
             }
         } finally {
             clearTimeout(timeout);
-            speedAbort = null;
+            speedAborts = [];
         }
     }
 
     /**
      * Turn a failed probe into something the user can act on.
      *
-     * A 404 almost always means the backend has not been redeployed since
-     * /api/speed was added, which is a very different fix from "no internet".
+     * The probe now runs against a third-party CDN rather than our own API, so
+     * there is no deployment to blame: the common causes are a blocked request
+     * or no connectivity at all.
      */
     function describeSpeedFailure(response, error) {
-        if (response && response.status === 404) {
-            return 'Redeploy API';
-        }
         if (response && (response.status === 401 || response.status === 403)) {
-            return 'API blocked';
+            return 'Request blocked';
         }
         if (response && response.status >= 500) {
-            return 'API error';
+            return 'Probe failed';
         }
         if (error instanceof TypeError) {
             return 'No connection';
