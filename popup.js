@@ -21,7 +21,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         errorText: document.getElementById('errorText'),
         errorDetail: document.getElementById('errorDetail'),
         speedPill: document.getElementById('speedPill'),
-        speedValue: document.getElementById('speedValue')
+        speedValue: document.getElementById('speedValue'),
+        // Notes
+        notesSection: document.getElementById('notesSection'),
+        notesBar: document.getElementById('notesBar'),
+        notesToggle: document.getElementById('notesToggle'),
+        notesBody: document.getElementById('notesBody'),
+        notesAdd: document.getElementById('notesAdd'),
+        notesEmpty: document.getElementById('notesEmpty'),
+        notesGrid: document.getElementById('notesGrid'),
+        viewSwitch: document.getElementById('viewSwitch'),
+        notesChevron: document.getElementById('notesChevron'),
+        noteEditor: document.getElementById('noteEditor'),
+        noteEditorBack: document.getElementById('noteEditorBack'),
+        noteEditorDelete: document.getElementById('noteEditorDelete'),
+        noteEditorMode: document.getElementById('noteEditorMode'),
+        noteEditorTitle: document.getElementById('noteEditorTitle'),
+        noteEditorBody: document.getElementById('noteEditorBody'),
+        noteEditorStatus: document.getElementById('noteEditorStatus')
     };
 
     /**
@@ -65,6 +82,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const SPEED_TIMEOUT_MS = 8000;
 
     let speedTimer = null;
+    // Whether the speed loop has been stopped (popup closed/navigated away,
+    // or rendered offline). Prevents the sample's finally block from reviving
+    // the chain after stopSpeed().
+    let speedStopped = false;
     // AbortControllers for the streams of the sample currently in flight.
     let speedAborts = [];
     // Running average across samples, so one slow transfer is not alarming.
@@ -72,8 +93,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Samples completed since the last time the average was reset.
     let speedSampleCount = 0;
 
-    // Load initial state
-    await loadTabCount();
+    // Paint the base UI, then start the probe. resetToInitial() ends by
+    // calling loadTabCount(), and that query must not gate anything: awaiting
+    // it before initSpeed() meant the speed probe only started once the
+    // tab-info call resolved, which read as a startup delay on open.
     initSpeed();
     resetToInitial();
 
@@ -108,20 +131,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderOffline();
             return;
         }
+        speedStopped = false;
 
         // Navigating away must stop the timer, or a popup closed mid-sample
         // keeps the streams alive for the rest of the session.
         window.addEventListener('pagehide', stopSpeed);
 
         // First sample runs straight away so there is a number on screen, then
-        // the loop keeps refreshing it.
+        // finished samples chain straight into the next one with a 2s cadence.
         runSpeedSample();
-        speedTimer = setInterval(runSpeedSample, SPEED_SAMPLE_MS);
     }
 
     function stopSpeed() {
+        speedStopped = true;
         if (speedTimer) {
-            clearInterval(speedTimer);
+            clearTimeout(speedTimer);
             speedTimer = null;
         }
         speedAborts.forEach((c) => c.abort());
@@ -145,7 +169,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const timeout = setTimeout(() => controllers.forEach((c) => c.abort()), SPEED_TIMEOUT_MS);
 
         const started = performance.now();
-        let response = null;
         try {
             // All streams launch together, then every body is awaited before
             // the clock stops. Timing a single stream would understate the
@@ -193,28 +216,41 @@ document.addEventListener('DOMContentLoaded', async () => {
                 speedAverage = null;
                 speedSampleCount = 0;
                 elements.speedPill.dataset.state = 'error';
-                elements.speedValue.textContent = describeSpeedFailure(response, error);
+                elements.speedValue.textContent = describeSpeedFailure(error);
             }
         } finally {
             clearTimeout(timeout);
             speedAborts = [];
+            // Chain the next sample so the readout refreshes on a ~2s cadence.
+            // setInterval was gating on a separate clock and skipped ticks
+            // while a sample was in flight, so updates effectively ran every
+            // ~4s. Chaining from each finish keeps it at one sample per 2s
+            // (or per sample-duration on links slower than the window).
+            if (!speedStopped && navigator.onLine !== false) {
+                const elapsed = performance.now() - started;
+                speedTimer = setTimeout(
+                    runSpeedSample,
+                    Math.max(0, SPEED_SAMPLE_MS - elapsed)
+                );
+            }
         }
     }
 
     /**
      * Turn a failed probe into something the user can act on.
      *
-     * The probe now runs against a third-party CDN rather than our own API, so
-     * there is no deployment to blame: the common causes are a blocked request
-     * or no connectivity at all.
+     * The probe runs against a third-party CDN rather than our own API, so
+     * there is no deployment to blame: the realistic causes are no
+     * connectivity at all, or the request being blocked before it lands.
+     *
+     * Only the rejection reason is inspected. A non-2xx reply never reaches
+     * here as a Response - the stream wrapper turns it into a plain Error
+     * carrying the status in its message - so there is no status code to
+     * branch on.
      */
-    function describeSpeedFailure(response, error) {
-        if (response && (response.status === 401 || response.status === 403)) {
-            return 'Request blocked';
-        }
-        if (response && response.status >= 500) {
-            return 'Probe failed';
-        }
+    function describeSpeedFailure(error) {
+        // fetch rejects with a TypeError only when the request never made it
+        // onto the network: offline, DNS failure, or blocked by policy.
         if (error instanceof TypeError) {
             return 'No connection';
         }
@@ -306,6 +342,328 @@ document.addEventListener('DOMContentLoaded', async () => {
         elements.initialState.style.display = 'block';
         loadTabCount();
     }
+
+    /* ===================== Notes ===================== */
+
+    // One namespaced key holds every note. localStorage is per-extension and
+    // survives the popup closing, so the notes are there again on reopen.
+    const NOTES_KEY = 'tab-wrapper:notes:v1';
+    let notes = [];
+    // id of the note currently open in the editor; null means a new note.
+    let activeNoteId = null;
+    // Debounce so typing does not hit localStorage on every keystroke.
+    let noteSaveTimer = null;
+
+    function loadNotes() {
+        try {
+            const raw = localStorage.getItem(NOTES_KEY);
+            const parsed = raw ? JSON.parse(raw) : [];
+            // Guard against a corrupt or hand-edited value rather than letting
+            // it break the whole popup.
+            notes = Array.isArray(parsed) ? parsed.filter((n) => n && typeof n.id === 'string') : [];
+        } catch (error) {
+            console.error('Tab Wrapper: could not read notes:', error);
+            notes = [];
+        }
+    }
+
+    function persistNotes() {
+        try {
+            localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+        } catch (error) {
+            console.error('Tab Wrapper: could not save notes:', error);
+        }
+    }
+
+    function createNote() {
+        return {
+            id: `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            title: '',
+            body: '',
+            updatedAt: Date.now()
+        };
+    }
+
+    // Newest first, so a freshly written note lands at the top-left.
+    function sortedNotes() {
+        return [...notes].sort((a, b) => b.updatedAt - a.updatedAt);
+    }
+
+    function initNotes() {
+        loadNotes();
+
+        elements.notesToggle.addEventListener('click', () => setNotesOpen(!notesOpen()));
+        elements.notesChevron.addEventListener('click', () => setNotesOpen(!notesOpen()));
+        elements.notesAdd.addEventListener('click', () => openEditor(null));
+        elements.noteEditorBack.addEventListener('click', closeEditor);
+        elements.noteEditorDelete.addEventListener('click', deleteActiveNote);
+        elements.viewSwitch.addEventListener('click', toggleNoteView);
+
+        restoreNoteView();
+
+        // Live save. The title/body are written straight into the active note
+        // and persisted after a short pause, so closing the popup at any moment
+        // keeps what was typed.
+        elements.noteEditorTitle.addEventListener('input', onEditorInput);
+        elements.noteEditorBody.addEventListener('input', onEditorInput);
+
+        renderNotes();
+    }
+
+    function notesOpen() {
+        return elements.notesSection.classList.contains('open');
+    }
+
+    /* ---- Note card shape: squares (2 across) vs rectangles (1 across) ---- */
+
+    const NOTE_VIEW_KEY = 'tab-wrapper:notes-view:v1';
+
+    function getNoteView() {
+        try {
+            return localStorage.getItem(NOTE_VIEW_KEY) === 'list' ? 'list' : 'grid';
+        } catch (error) {
+            return 'grid';
+        }
+    }
+
+    function applyNoteView(view) {
+        const isList = view === 'list';
+        elements.notesGrid.classList.toggle('list', isList);
+        elements.viewSwitch.setAttribute('aria-checked', String(isList));
+        try {
+            localStorage.setItem(NOTE_VIEW_KEY, view);
+        } catch (error) {
+            // Non-fatal: view just falls back to default next open.
+        }
+        // Keep the expanded shelf's height cap in step with the grid.
+        if (notesOpen()) elements.notesBody.style.maxHeight = 'none';
+    }
+
+    function toggleNoteView() {
+        applyNoteView(getNoteView() === 'list' ? 'grid' : 'list');
+    }
+
+    function restoreNoteView() {
+        applyNoteView(getNoteView());
+    }
+
+    function setNotesOpen(open) {
+        const section = elements.notesSection;
+        const body = elements.notesBody;
+        // Measured before the class flips, so this is the width we animate
+        // away from rather than the one we land on.
+        const barFromWidth = elements.notesBar.getBoundingClientRect().width;
+
+        if (open) {
+            // Measure the natural height, animate to it, then release the cap
+            // so the panel can grow/shrink with its content while open.
+            body.style.maxHeight = `${body.scrollHeight}px`;
+            section.classList.add('open');
+            elements.notesToggle.setAttribute('aria-expanded', 'true');
+            body.addEventListener('transitionend', function release(event) {
+                if (event.propertyName !== 'max-height') return;
+                if (notesOpen()) body.style.maxHeight = 'none';
+                body.removeEventListener('transitionend', release);
+            });
+        } else {
+            // Coming from 'none' there is no height to interpolate from, so pin
+            // the current height for one frame before collapsing.
+            body.style.maxHeight = `${body.scrollHeight}px`;
+            void body.offsetHeight;
+            body.style.maxHeight = '0px';
+            section.classList.remove('open');
+            elements.notesToggle.setAttribute('aria-expanded', 'false');
+        }
+
+        resizeNotesBar(elements.notesBar, barFromWidth);
+    }
+
+    // Bumped on every toggle so an in-flight resize can tell it has been
+    // superseded and must not release the newer animation's inline width.
+    let notesBarAnim = 0;
+
+    /**
+     * Animate the notes bar between its shrink-wrapped and full-width states.
+     *
+     * The width cannot be left to the CSS transition: the two ends resolve
+     * from different sources (`fit-content` on the label vs 100% of the
+     * column) and are not interpolable, so the property would change
+     * discretely and snap. Pinning both ends in pixels around a measurement
+     * gives the transition two numbers it can actually interpolate.
+     */
+    function resizeNotesBar(bar, from) {
+        const token = ++notesBarAnim;
+
+        // Read the target with any inline width cleared, so the CSS state is
+        // what decides it. Nothing paints between this and the pin below, so
+        // the end state never flashes on screen first.
+        bar.style.transition = 'none';
+        bar.style.width = '';
+        const to = bar.getBoundingClientRect().width;
+
+        if (!to || Math.abs(to - from) < 0.5) {
+            bar.style.transition = '';
+            bar.style.width = '';
+            return;
+        }
+
+        bar.style.width = `${from}px`;
+        void bar.offsetWidth;   // flush the pinned start before animating
+        bar.style.transition = '';
+        bar.style.width = `${to}px`;
+
+        // Hand sizing back to CSS once the transition has landed, so the bar
+        // keeps responding to its own content afterwards. A later toggle bumps
+        // the token and owns the cleanup from then on.
+        setTimeout(() => {
+            if (token !== notesBarAnim) return;
+            bar.style.transition = '';
+            bar.style.width = '';
+        }, 380);
+    }
+
+    function renderNotes() {
+        elements.notesGrid.replaceChildren();
+
+        if (notes.length === 0) {
+            elements.notesEmpty.hidden = false;
+        } else {
+            elements.notesEmpty.hidden = true;
+            for (const note of sortedNotes()) {
+                elements.notesGrid.appendChild(buildNoteCard(note));
+            }
+        }
+
+        // If the shelf is open, keep the cap in step with the new content.
+        if (notesOpen()) elements.notesBody.style.maxHeight = 'none';
+    }
+
+    function buildNoteCard(note) {
+        const wrap = document.createElement('div');
+        wrap.className = 'note-card-wrap';
+
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'note-card';
+
+        const title = document.createElement('div');
+        title.className = 'note-card__title';
+        title.textContent = note.title.trim() || 'Untitled';
+
+        const snippet = document.createElement('div');
+        snippet.className = 'note-card__snippet';
+        snippet.textContent = note.body;
+
+        card.append(title, snippet);
+        // Driving the card from data avoids inline handlers, which a stricter
+        // extension CSP would refuse.
+        card.addEventListener('click', () => openEditor(note.id));
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'note-card__del';
+        del.title = 'Delete note';
+        del.setAttribute('aria-label', 'Delete note');
+        del.textContent = '\u00d7';   // multiplication sign reads as a close glyph
+        del.addEventListener('click', () => deleteNote(note.id));
+
+        wrap.append(card, del);
+        return wrap;
+    }
+
+    function openEditor(id) {
+        activeNoteId = id;
+        const note = id ? notes.find((n) => n.id === id) : null;
+
+        elements.noteEditorMode.textContent = note ? 'Editing note' : 'New note';
+        elements.noteEditorTitle.value = note ? note.title : '';
+        elements.noteEditorBody.value = note ? note.body : '';
+        // A brand-new note has nothing to delete until the first keystroke.
+        elements.noteEditorDelete.hidden = !note;
+
+        elements.noteEditor.classList.add('is-open');
+        elements.noteEditor.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('is-editing');
+
+        // Focus after the reveal transition starts so the caret is not placed
+        // while the panel is still moving.
+        setTimeout(() => elements.noteEditorTitle.focus(), 60);
+    }
+
+    function closeEditor() {
+        // Flush any debounced write before leaving the editor.
+        flushNote();
+        elements.noteEditor.classList.remove('is-open');
+        elements.noteEditor.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('is-editing');
+        elements.noteEditorStatus.textContent = '';
+        activeNoteId = null;
+        renderNotes();
+    }
+
+    function onEditorInput() {
+        const title = elements.noteEditorTitle.value;
+        const body = elements.noteEditorBody.value;
+
+        let note = activeNoteId ? notes.find((n) => n.id === activeNoteId) : null;
+        if (!note) {
+            // First keystroke on a new note: create it and adopt its id, so
+            // everything after this edits the same record.
+            if (!title.trim() && !body.trim()) return;
+            note = createNote();
+            notes.push(note);
+            activeNoteId = note.id;
+            elements.noteEditorMode.textContent = 'Editing note';
+            elements.noteEditorDelete.hidden = false;
+        }
+
+        note.title = title;
+        note.body = body;
+        note.updatedAt = Date.now();
+
+        elements.noteEditorStatus.textContent = 'Saving...';
+        clearTimeout(noteSaveTimer);
+        noteSaveTimer = setTimeout(flushNote, 300);
+    }
+
+    function flushNote() {
+        clearTimeout(noteSaveTimer);
+        noteSaveTimer = null;
+        persistNotes();
+        if (elements.noteEditor.classList.contains('is-open')) {
+            elements.noteEditorStatus.textContent = 'Saved';
+        }
+    }
+
+    function deleteNote(id) {
+        notes = notes.filter((n) => n.id !== id);
+        persistNotes();
+        if (activeNoteId === id) {
+            closeEditor();
+        } else {
+            renderNotes();
+        }
+    }
+
+    function deleteActiveNote() {
+        if (!activeNoteId) return;
+        // Clearing the id first means the shared delete path takes the
+        // "just re-render" branch instead of recursing through closeEditor.
+        const id = activeNoteId;
+        activeNoteId = null;
+        notes = notes.filter((n) => n.id !== id);
+        persistNotes();
+        closeEditor();
+    }
+
+    // Persist anything pending if the popup is torn down mid-edit.
+    window.addEventListener('pagehide', flushNote);
+
+    // Called last, after every const above is initialized. initNotes() reads
+    // NOTES_KEY, and a const is in the temporal dead zone until execution
+    // reaches it - calling it from the top of this handler throws before any
+    // listener is attached, taking the organize buttons down with it.
+    initNotes();
 
     // Handle tab count updates
     api.tabs.onCreated.addListener(loadTabCount);

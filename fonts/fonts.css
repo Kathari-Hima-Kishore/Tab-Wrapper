@@ -1,0 +1,18 @@
+/* Bundled fonts (latin subset). One variable woff2 per family covers every
+   weight used by the popup. Local files render immediately on popup open -
+   fetching Google Fonts was adding visible startup lag. */
+@font-face {
+    font-family: 'DM Sans';
+    font-style: normal;
+    font-weight: 100 1000;
+    font-display: swap;
+    src: url('dm-sans-latin.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Space Grotesk';
+    font-style: normal;
+    font-weight: 100 1000;
+    font-display: swap;
+    src: url('space-grotesk-latin.woff2') format('woff2');
+}

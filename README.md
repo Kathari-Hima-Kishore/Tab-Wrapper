@@ -11,8 +11,8 @@ Tab Wrapper is a browser extension that uses advanced AI technology to analyze y
 ## ✨ Visual Walkthrough
 
 ### 1. The Chaos Before
-Don't waste time manualmente dragging and dropping tabs. Let AI do the work.
-![Messy Tabs](res/1%20.png)
+Don't waste time manually dragging and dropping tabs. Let AI do the work.
+![Messy Tabs](res/1.png)
 
 ### 2. Simple Interface
 Trigger the organization process with a single click. 
@@ -20,7 +20,7 @@ Trigger the organization process with a single click.
 
 ### 3. AI Categorization
 The extension automatically analyzes your tab contents and determines logical categories.
-![AI Analyzing](res/3%20.png)
+![AI Analyzing](res/3.png)
 
 ### 4. Perfect Order
 Tabs are grouped and labeled by specific context, helping you navigate your browser like a pro.
@@ -71,7 +71,7 @@ If you want to host your own backend on Vercel:
 ---
 
 ## ⚖️ License
-Distributed under the MIT License. See `LICENSE` for more information.
+Distributed under the MIT License.
 
 ---
 

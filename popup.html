@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tab Wrapper</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Fonts are bundled locally (fonts/ dir) rather than fetched from
+         Google Fonts: the remote CSS + woff2 round-trips were the main reason
+         the popup took a beat to render open. -->
+    <link rel="stylesheet" href="fonts/fonts.css">
     <style>
         /* To use the real Talina: buy a commercial license from Pandeka Foundry
            (https://www.1001fonts.com/talina-demo-font.html), drop the .otf next
@@ -31,7 +32,13 @@
             --page: #0a1a3a;   /* backdrop behind the card, standalone only */
             --ink: #14204f;
             --chalk: #f7f7f2;
-            --brutal: 3px;
+
+            /* SINGLE KNOB for every border in the popup - the outer frame and
+               the inner surfaces alike. Raise or lower this one number to
+               change the weight of the whole design at once; nothing else
+               hard-codes a thickness. */
+            --brutal: 4px;
+
             --press-x: 5px;
             --press-y: 5px;
             --edge: #000000;   /* popup frame */
@@ -46,7 +53,14 @@
            rectangle right across the popup. So neither html nor body may carry
            the fill - it lives on body::before, which is clipped. */
         html {
-            background: transparent;
+            /* Painted, not transparent. This build of Chrome sizes the native
+               popup surface taller than the card and leaves the remainder as a
+               white strip, which is most visible when the notes shelf is
+               collapsed and the card is short. Filling the canvas with the
+               darkest end of the gradient removes it. Body stays transparent,
+               so this propagates across the whole popup and the card still
+               paints its own gradient on top. */
+            background: #03060f;
         }
 
         body {
@@ -82,8 +96,17 @@
         }
 
         /* Standalone in a browser tab there is page around the panel, so the
-           card can sit on it with a real drop shadow. */
-        @media (min-width: 320px), (min-height: 400px) {
+           card can sit on it with a real drop shadow.
+
+           WIDTH-ONLY on purpose. The old form was
+           `(min-width: 320px), (min-height: 400px)`, and the height clause was
+           the bug: the popup is 280px wide, so it never matches on width, but
+           opening the notes shelf grows the panel past 400px tall and the query
+           suddenly switched on. That injected 18px of page padding and a
+           drop shadow into the real extension popup, which is what produced
+           the pale bar and the mismatched edge around the card. Height can
+           rise in the popup, so it must not be part of this condition. */
+        @media screen and (min-width: 320px) {
             html {
                 padding: 18px;
                 /* A real backdrop stops the transparent canvas showing through
@@ -211,10 +234,6 @@
             align-items: center;
             justify-content: center;
             white-space: nowrap;
-        }
-
-        .tab-count-icon {
-            display: none;
         }
 
         /* Live download speed. Same chalk treatment as the tab count beside it: the
@@ -490,11 +509,655 @@
             color: #33447a;
         }
 
-        /* Holds the swappable states so the header can be hidden while
-           processing without touching the per-state display rules. */
-        .panel {
+        /* ================= Notes ================= */
+        /* A collapsible shelf under the organize button. Collapsed it is a
+           single bar; open it reveals a Keep-style grid, and a + bar above the
+           grid opens the full-panel editor. Everything is chalk-on-blue and
+           hard-edged, matching the rest of the panel. */
+
+        .notes-section {
+            margin-top: 14px;
+        }
+
+        /* One chalk bar holding three controls: expand zone, shape switch,
+           chevron. The bar itself carries the border/shadow; the inner
+           buttons are borderless so they read as one surface.
+
+           Collapsed it shrink-wraps "Notes" into a compact chip: the width
+           comes from the label, not from the column. Opening swaps it to 100%
+           so the Shape row has room to sit under the label. `fit-content` and
+           100% are not interpolable, so popup.js drives that change in pixels
+           instead of leaving it to the CSS transition. */
+        .notes-bar {
+            width: fit-content;
+            max-width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 5px 6px 5px 12px;
+            background: var(--chalk);
+            color: var(--ink);
+            border: var(--brutal) solid var(--ink);
+            border-radius: var(--r-badge);
+            box-shadow: 2px 2px 0 var(--ink);
+            font-family: 'Space Grotesk', 'DM Sans', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            transition:
+                width 0.32s cubic-bezier(0.2, 0.7, 0.3, 1),
+                transform 0.06s ease,
+                box-shadow 0.06s ease;
+        }
+
+        .notes-section.open .notes-bar {
+            width: 100%;
+        }
+
+        /* Stacked: "Notes" on top, the Shape switch directly beneath it once
+           the shelf is open. The basis stays auto while collapsed so the bar
+           can resolve its shrink-wrapped width from the label alone; open, it
+           grows instead, which is what pushes the chevron out to the edge. */
+        .notes-bar__main {
+            flex: 0 1 auto;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .notes-section.open .notes-bar__main {
+            flex: 1;
+        }
+
+        .notes-bar:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 var(--ink);
+        }
+
+        .notes-bar__toggle {
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font: inherit;
+            color: inherit;
+            letter-spacing: inherit;
+            text-transform: inherit;
+            text-align: left;
+        }
+
+        .notes-bar__toggle:focus-visible {
+            outline: var(--brutal) solid var(--chalk);
+            outline-offset: 2px;
+            border-radius: 6px;
+        }
+
+        /* No radius override here: the button's own 50% is what makes the
+           ring round, so setting one would square it back off. */
+        .notes-bar__chev:focus-visible {
+            outline: var(--brutal) solid var(--chalk);
+            outline-offset: 2px;
+        }
+
+        .notes-toggle__label {
+            flex: 1;
+            text-align: left;
+        }
+
+        .notes-bar__shape {
+            align-items: center;
+            gap: 6px;
+            padding-right: 2px;
+            /* Whole row (label + switch) is only shown once the shelf is
+               expanded. */
+            display: none;
+        }
+
+        /* Held back until the bar has finished widening. Shown mid-resize the
+           switch would spill out of the still-narrow bar and land on top of
+           the chevron; the `both` fill keeps it invisible through the delay. */
+        .notes-section.open .notes-bar__shape {
+            display: flex;
+            animation: notes-shape-reveal 0.22s ease 0.3s both;
+        }
+
+        @keyframes notes-shape-reveal {
+            from { visibility: hidden; opacity: 0; }
+            to   { visibility: visible; opacity: 1; }
+        }
+
+        .notes-bar__shape-label {
+            font-size: 11px;
+            letter-spacing: 1px;
+            opacity: 0.7;
+        }
+
+        /* Inside the split bar the label sits next to its count; the toggle
+           button itself (flex:1 on the bar) fills the spare space. */
+        .notes-bar__toggle .notes-toggle__label {
+            flex: 0;
+        }
+
+        .notes-bar__chev {
+            display: grid;
+            place-items: center;
+            align-self: center;
+            width: 24px;
+            height: 24px;
+            /* Taller than the bar's content box and pulled back with negative
+               margins, so the label alone decides the chip's height. Without
+               this the 24px button would be the tallest thing in the row and
+               set the collapsed height itself. */
+            margin: -4px 0;
+            background: none;
+            border: none;
+            /* Round, so the hover highlight and the focus ring both read as a
+               circle instead of a square sitting on the bar. */
+            border-radius: 50%;
+            cursor: pointer;
+            padding: 0;
+            transition: background-color 0.15s ease;
+        }
+
+        /* Circle the collapse control under the pointer, so it reads as a
+           button rather than a bare glyph on the bar. */
+        .notes-bar__chev:hover {
+            background-color: rgba(20, 32, 79, 0.14);
+        }
+
+        .notes-bar__chev:active {
+            background-color: rgba(20, 32, 79, 0.24);
+        }
+
+        .notes-toggle__chevron {
+            width: 16px;
+            height: 16px;
+            flex: none;
+            fill: none;
+            stroke: var(--ink);
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.3, 1);
+        }
+
+        .notes-section.open .notes-toggle__chevron {
+            transform: rotate(180deg);
+        }
+
+        /* The reveal. max-height is driven from JS because the content height
+           is not fixed; opacity rides along so text fades in rather than being
+           clipped into view. */
+        .notes-body {
+            margin-top: 0;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition:
+                max-height 0.32s cubic-bezier(0.2, 0.7, 0.3, 1),
+                opacity 0.24s ease,
+                margin-top 0.32s ease;
+        }
+
+        .notes-section.open .notes-body {
+            margin-top: 10px;
+            opacity: 1;
+        }
+
+        /* "Take a note" bar. Mirrors Google Keep's composer entry point. */
+        .notes-add {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 9px 10px 9px 12px;
+            margin-bottom: 10px;
+            background: var(--chalk);
+            color: #6c7fb8;
+            border: var(--brutal) solid var(--ink);
+            border-radius: var(--r-card);
+            box-shadow: 2px 2px 0 var(--ink);
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            transition: transform 0.06s ease, box-shadow 0.06s ease;
+        }
+
+        .notes-add:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 var(--ink);
+        }
+
+        .notes-add:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 var(--ink);
+        }
+
+        .notes-add:focus-visible {
+            outline: var(--brutal) solid var(--chalk);
+            outline-offset: 3px;
+        }
+
+        .notes-add__plus {
+            width: 26px;
+            height: 26px;
+            flex: none;
+            display: grid;
+            place-items: center;
+            background: var(--ink);
+            border-radius: 8px;
+        }
+
+        .notes-add__plus svg {
+            width: 15px;
+            height: 15px;
+            fill: none;
+            stroke: var(--chalk);
+            stroke-width: 2.6;
+            stroke-linecap: round;
+        }
+
+        .notes-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        /* Wide rectangles: one per row. */
+        .notes-grid.list {
+            grid-template-columns: 1fr;
+        }
+
+        .notes-grid.list .note-card {
+            min-height: 0;
+        }
+
+        .notes-grid.list .note-card__snippet {
+            -webkit-line-clamp: 2;
+        }
+
+        /* ---- Note shape switch ---- */
+        /* Neo-brutalist toggle: chalk pill with a heavy ink border and
+           offset shadow, thumb slides and morphs between a 2x2-squares icon
+           and two wide-bar icon. Not a generic system checkbox. */
+        .view-switch {
             position: relative;
-            z-index: 1;
+            flex: none;
+            /* Compact variant so it fits inside the notes bar. */
+            width: 44px;
+            height: 26px;
+            background: var(--chalk);
+            border: var(--brutal) solid var(--ink);
+            border-radius: 999px;
+            box-shadow: 2px 2px 0 var(--ink);
+            cursor: pointer;
+            transition: transform 0.06s ease, box-shadow 0.06s ease, background 0.18s ease;
+        }
+
+        .view-switch:hover {
+            background: #ffffff;
+        }
+
+        .view-switch:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 var(--ink);
+        }
+
+        .view-switch:focus-visible {
+            outline: var(--brutal) solid var(--chalk);
+            outline-offset: 2px;
+        }
+
+        .view-switch__thumb {
+            position: absolute;
+            top: 50%;
+            left: 3px;
+            width: 16px;
+            height: 16px;
+            margin-top: -8px;
+            display: grid;
+            place-items: center;
+            background: var(--ink);
+            color: var(--chalk);
+            border-radius: 50%;
+            transition: transform 0.2s cubic-bezier(0.2, 0.7, 0.3, 1.35), background 0.18s ease;
+        }
+
+        .view-switch[aria-checked="true"] {
+            background: #2f6fd0;
+        }
+
+        .view-switch[aria-checked="true"] .view-switch__thumb {
+            transform: translateX(18px);
+        }
+
+        .view-switch__thumb svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        /* The two icon groups live in the same ink chip; swap with a scale +
+           fade rather than an abrupt swap. */
+        .view-switch__thumb .vs-list {
+            opacity: 0;
+            transform: scale(0.4) rotate(-10deg);
+            transform-origin: center;
+            transform-box: fill-box;
+        }
+
+        .view-switch__thumb .vs-grid,
+        .view-switch__thumb .vs-list {
+            transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+
+        .view-switch[aria-checked="true"] .vs-grid {
+            opacity: 0;
+            transform: scale(0.4) rotate(10deg);
+            transform-origin: center;
+            transform-box: fill-box;
+        }
+
+        .view-switch[aria-checked="true"] .vs-list {
+            opacity: 1;
+            transform: none;
+        }
+
+        /* An empty grid would still reserve its gap; drop it entirely. */
+        .notes-grid:empty {
+            display: none;
+        }
+
+        .note-card-wrap {
+            position: relative;
+            min-width: 0; /* grid child must be allowed to shrink, otherwise
+                             long note text overflows past the card edge */
+        }
+
+        .note-card {
+            width: 100%;
+            min-width: 0;
+            min-height: 86px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+            padding: 9px 10px;
+            text-align: left;
+            background: var(--chalk);
+            color: var(--ink);
+            border: var(--brutal) solid var(--ink);
+            border-radius: var(--r-card);
+            box-shadow: 2px 2px 0 var(--ink);
+            cursor: pointer;
+            transition: transform 0.06s ease, box-shadow 0.06s ease;
+        }
+
+        .note-card:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 var(--ink);
+        }
+
+        .note-card:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 var(--ink);
+        }
+
+        .note-card:focus-visible {
+            outline: var(--brutal) solid var(--chalk);
+            outline-offset: 2px;
+        }
+
+        .note-card__title {
+            width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-family: 'Space Grotesk', 'DM Sans', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: -0.2px;
+        }
+
+        .note-card__snippet {
+            width: 100%;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            font-size: 11px;
+            line-height: 1.35;
+            color: #33447a;
+            /* Long unbroken strings ("AAAA...") run off the card without
+               this; anywhere breaks them inside the card instead. */
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        /* Delete sits above the card so it never steals the open-note click.
+           Revealed on hover or keyboard focus. */
+        .note-card__del {
+            position: absolute;
+            top: -7px;
+            right: -7px;
+            width: 22px;
+            height: 22px;
+            display: grid;
+            place-items: center;
+            background: #ff8080;
+            color: var(--ink);
+            border: var(--brutal) solid var(--ink);
+            border-radius: 50%;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            opacity: 0;
+            transform: scale(0.8);
+            transition: opacity 0.12s ease, transform 0.12s ease;
+        }
+
+        .note-card-wrap:hover .note-card__del,
+        .note-card__del:focus-visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .notes-empty {
+            padding: 14px 12px;
+            border: var(--brutal) dashed rgba(247, 247, 242, 0.5);
+            border-radius: var(--r-card);
+            text-align: center;
+            color: rgba(247, 247, 242, 0.85);
+            font-size: 11px;
+            letter-spacing: 0.4px;
+        }
+
+        .notes-empty[hidden] {
+            display: none;
+        }
+
+        .notes-empty__hint {
+            display: block;
+            margin-top: 3px;
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        /* ---- Full-panel note editor ---- */
+        /* Covers the whole card, like a sheet of paper. Kept mounted at opacity
+           0 and hidden from tab order rather than display:none, so both the
+           reveal and the dismissal can animate. */
+        .note-editor {
+            position: absolute;
+            inset: 0;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 14px;
+            background: var(--chalk);
+            color: var(--ink);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(14px);
+            transition:
+                opacity 0.22s ease,
+                transform 0.22s cubic-bezier(0.2, 0.7, 0.3, 1),
+                visibility 0s linear 0.22s;
+        }
+
+        .note-editor.is-open {
+            opacity: 1;
+            visibility: visible;
+            transform: none;
+            transition:
+                opacity 0.22s ease,
+                transform 0.22s cubic-bezier(0.2, 0.7, 0.3, 1),
+                visibility 0s;
+        }
+
+        /* Give the popup room to feel like a full screen while writing. */
+        body.is-editing {
+            min-height: 420px;
+        }
+
+        .note-editor__bar {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .note-editor__back,
+        .note-editor__delete {
+            display: grid;
+            place-items: center;
+            height: 34px;
+            background: var(--chalk);
+            color: var(--ink);
+            border: var(--brutal) solid var(--ink);
+            border-radius: var(--r-badge);
+            box-shadow: 2px 2px 0 var(--ink);
+            cursor: pointer;
+            font-family: 'Space Grotesk', 'DM Sans', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            transition: transform 0.06s ease, box-shadow 0.06s ease;
+        }
+
+        .note-editor__back {
+            width: 40px;
+        }
+
+        .note-editor__delete {
+            padding: 0 12px;
+        }
+
+        /* The rule above sets display, which would beat the UA [hidden] style
+           and leave Delete visible on a brand-new note. */
+        .note-editor__delete[hidden] {
+            display: none;
+        }
+
+        .note-editor__back svg {
+            width: 16px;
+            height: 16px;
+            fill: none;
+            stroke: var(--ink);
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .note-editor__back:hover,
+        .note-editor__delete:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 0 0 0 var(--ink);
+        }
+
+        .note-editor__back:focus-visible,
+        .note-editor__delete:focus-visible {
+            outline: var(--brutal) solid var(--ink);
+            outline-offset: 2px;
+        }
+
+        .note-editor__title-label {
+            text-align: center;
+            font-family: 'Space Grotesk', 'DM Sans', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #33447a;
+        }
+
+        .note-editor__title {
+            width: 100%;
+            padding: 2px 0;
+            background: transparent;
+            border: none;
+            border-bottom: var(--brutal) solid rgba(20, 32, 79, 0.18);
+            outline: none;
+            font-family: 'Space Grotesk', 'DM Sans', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: var(--ink);
+        }
+
+        .note-editor__title::placeholder,
+        .note-editor__body::placeholder {
+            color: #8d9bc7;
+        }
+
+        .note-editor__body {
+            flex: 1;
+            width: 100%;
+            padding: 2px 0;
+            background: transparent;
+            border: none;
+            outline: none;
+            resize: none;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            line-height: 1.55;
+            color: var(--ink);
+        }
+
+        .note-editor__status {
+            min-height: 12px;
+            text-align: right;
+            font-family: 'Space Grotesk', 'DM Sans', sans-serif;
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            color: #6c7fb8;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .notes-body,
+            .notes-toggle__chevron,
+            .note-editor,
+            .notes-bar {
+                transition: none !important;
+            }
+
+            /* With the bar snapping open there is no resize to hide behind,
+               so the Shape row can show straight away. */
+            .notes-section.open .notes-bar__shape {
+                animation: none !important;
+            }
         }
 
         /* While the loader is showing, the title block is hidden so the
@@ -532,6 +1195,67 @@
                 <span>Organize tabs</span>
             </button>
         </div>
+
+        <!-- Collapsible notes shelf. Collapsed bar reveals a Keep-style grid
+             and the + composer when opened. -->
+        <section class="notes-section" id="notesSection">
+            <!-- One integrated bar: expand/collapse zone (label + count) on the
+                 left, the card-shape switch in the middle, and the chevron on
+                 the right. All three controls share the same pill surface. -->
+            <div class="notes-bar" id="notesBar">
+                <div class="notes-bar__main">
+                    <button class="notes-bar__toggle" id="notesToggle" aria-expanded="false" aria-controls="notesBody">
+                        <span class="notes-toggle__label">Notes</span>
+                    </button>
+                    <div class="notes-bar__shape">
+                        <span class="notes-bar__shape-label">Shape</span>
+                        <button type="button" class="view-switch" id="viewSwitch"
+                                role="switch" aria-checked="false"
+                                aria-label="Switch note shape between squares and rectangles">
+                            <span class="view-switch__thumb" aria-hidden="true">
+                                <svg viewBox="0 0 24 24">
+                                    <g class="vs-grid" fill="currentColor">
+                                        <rect x="3" y="3" width="7.5" height="7.5" rx="1.6"></rect>
+                                        <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"></rect>
+                                        <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"></rect>
+                                        <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"></rect>
+                                    </g>
+                                    <g class="vs-list" fill="currentColor">
+                                        <rect x="3" y="4.5" width="18" height="6" rx="2.4"></rect>
+                                        <rect x="3" y="13.5" width="18" height="6" rx="2.4"></rect>
+                                    </g>
+                                </svg>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+                <button class="notes-bar__chev" id="notesChevron" aria-label="Expand or collapse notes">
+                    <svg class="notes-toggle__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="notes-body" id="notesBody">
+                <button class="notes-add" id="notesAdd">
+                    <span>Take a note...</span>
+                    <span class="notes-add__plus" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </span>
+                </button>
+
+                <div class="notes-empty" id="notesEmpty">
+                    No notes yet
+                    <span class="notes-empty__hint">Tap + to write your first one</span>
+                </div>
+
+                <div class="notes-grid" id="notesGrid"></div>
+
+            </div>
+        </section>
     </div>
 
     <div class="processing-state" id="processingState">
@@ -569,6 +1293,28 @@
         <button class="main-button" id="retryButton">
             <span>Try again</span>
         </button>
+    </div>
+
+    <!-- Full-panel note editor. Covers the whole card while writing; slides
+         in over the UI rather than opening a separate window. -->
+    <div class="note-editor" id="noteEditor" aria-hidden="true">
+        <div class="note-editor__bar">
+            <button class="note-editor__back" id="noteEditorBack" aria-label="Back to notes">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <div class="note-editor__title-label" id="noteEditorMode">New note</div>
+            <button class="note-editor__delete" id="noteEditorDelete" title="Delete note">Delete</button>
+        </div>
+
+        <input class="note-editor__title" id="noteEditorTitle" type="text"
+               placeholder="Title" autocomplete="off" spellcheck="false" />
+
+        <textarea class="note-editor__body" id="noteEditorBody"
+                  placeholder="Write your note..."></textarea>
+
+        <div class="note-editor__status" id="noteEditorStatus"></div>
     </div>
 
     <script src="popup.js"></script>

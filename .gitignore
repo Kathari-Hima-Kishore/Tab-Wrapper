@@ -1,0 +1,7 @@
+# Packaged extension zips and the scratch dirs used to assemble them
+*.zip
+temp-chrome/
+temp-firefox/
+
+# Python bytecode from running the backend locally
+__pycache__/

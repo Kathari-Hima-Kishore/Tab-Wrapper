@@ -14,15 +14,11 @@ const hasTabGroupsAPI = () => {
 
 // Listen for messages from popup
 api.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log('Tab Wrapper Background: Received message:', message);
-    
     if (message.action === 'organizeTabs') {
-        console.log('Tab Wrapper Background: Starting organizeTabsWithAI');
         organizeTabsWithAI().then(result => {
-            console.log('Tab Wrapper Background: organizeTabsWithAI completed:', result);
             sendResponse(result);
         }).catch(error => {
-            console.error('Tab Wrapper Background: Error in organizeTabsWithAI:', error);
+            console.error('Tab Wrapper: organizeTabsWithAI failed:', error);
             sendResponse({
                 success: false,
                 error: error.message || 'Internal error occurred while organizing tabs'
@@ -33,14 +29,11 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function organizeTabsWithAI() {
-    console.log('Tab Wrapper: Starting organizeTabsWithAI');
-
     try {
         // Step 1: Get tabs from the last focused normal window
         let targetWindow;
         try {
             targetWindow = await api.windows.getLastFocused({ populate: true });
-            console.log('Tab Wrapper: Window type:', targetWindow.type, 'id:', targetWindow.id);
         } catch (e) {
             console.warn('Tab Wrapper: Could not get last focused window:', e.message);
         }
@@ -67,9 +60,8 @@ async function organizeTabsWithAI() {
             };
         }
 
-        // Step 2: Call your Vercel Backend (This hides the API key and model selection)
-        console.log('Tab Wrapper: Calling backend API...');
-
+        // Step 2: Call the Vercel backend, which keeps the API key and model
+        // selection off the client.
         const payload = JSON.stringify({
             tabs: scriptableTabs.map(tab => ({
                 id: tab.id,
@@ -187,8 +179,6 @@ async function createTabGroups(groups, windowId) {
                 .filter(id => id !== undefined);
 
             if (actualTabIds.length === 0) continue;
-
-            console.log(`Tab Wrapper: Grouping ${actualTabIds.length} tab(s) into "${group.groupName}"`);
 
             const groupId = await api.tabs.group({ 
                 tabIds: actualTabIds,
