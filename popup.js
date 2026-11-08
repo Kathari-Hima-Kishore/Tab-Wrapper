@@ -42,16 +42,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     /**
-     * Live network readout, refreshed every 200ms.
+     * Live network readout, refreshed roughly every 2000ms. This is the
+     * speed the browser on this device is receiving, i.e. the user's actual
+     * Internet speed, not a cloud-server speed.
      *
      * Why a real probe instead of navigator.connection: that API's `downlink`
      * is a cached estimate the browser only revises when the connection profile
      * changes, so polling it faster just reprints the same number. Timing an
      * actual round trip gives a measurement that genuinely moves each tick.
      *
-     * The probe targets this extension's own API host, the only origin already
-     * granted in host_permissions - so no extra permission is requested and
-     * nothing off-origin is contacted.
+     * The probe targets Cloudflare's speed host, the second origin already
+     * granted in host_permissions - so no extra permission is requested.
+     * Cloudflare routes to the edge nearest this browser, so the timing
+     * measures this browser's receiving speed.
      */
     // Declared BEFORE initSpeed() is called below. const/let live in the
     // temporal dead zone until execution reaches them, so calling a function
@@ -205,7 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     : speedAverage + SPEED_SMOOTHING * (mbps - speedAverage);
 
                 delete elements.speedPill.dataset.state;
-                elements.speedValue.textContent = `${speedAverage.toFixed(2)} mbps`;
+                elements.speedValue.textContent = `${speedAverage.toFixed(2)} Mbps`;
             }
         } catch (error) {
             // An aborted probe means the stream stalled or we navigated away.

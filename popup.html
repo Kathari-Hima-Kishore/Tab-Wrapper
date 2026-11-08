@@ -263,6 +263,15 @@
             font-variant-numeric: tabular-nums;
         }
 
+        /* A reading reads "42.31 Mbps" - only the M is capitalised, so the
+           uppercase transform is dropped while a measurement is on screen.
+           popup.js clears data-state for a reading and sets 'offline'/'error'
+           otherwise, so those two keep their capitals and stay a match for
+           the tab-count capsule beside them. */
+        .speed-pill:not([data-state]) {
+            text-transform: none;
+        }
+
         /* Offline and error are the states that depart from the chalk treatment */
         .speed-pill[data-state="offline"],
         .speed-pill[data-state="error"] {
@@ -1185,7 +1194,7 @@
                 <span id="tabCount">Loading tabs...</span>
             </div>
 
-            <div class="speed-pill" id="speedPill" title="Live download speed, measured in the browser every 500ms">
+            <div class="speed-pill" id="speedPill" title="This browser's Internet speed, measured in the browser roughly every 2000ms">
                 <span class="speed-value" id="speedValue">Checking speed...</span>
             </div>
         </div>
